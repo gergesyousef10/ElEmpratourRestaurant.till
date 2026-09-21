@@ -152,7 +152,10 @@ main{padding-block:18px 40px}
 .empty{padding:38px 16px;text-align:center;color:var(--txt-3);font-size:14px}
 
 /* ---------- ticket ---------- */
-.ticket{position:sticky;top:110px;display:flex;flex-direction:column;max-height:calc(100vh - 128px);overflow:hidden}
+/* --hdr is measured from the real header on every resize, so the ticket is
+   always exactly as tall as the screen allows — no guessing, no wasted strip. */
+.ticket{position:sticky;top:calc(var(--hdr,110px) + 8px);display:flex;flex-direction:column;
+  max-height:calc(100vh - var(--hdr,110px) - 26px);overflow:hidden}
 .t-head{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line);
   background:var(--raise);border-radius:var(--r) var(--r) 0 0}
 .t-head .ttl{font-family:var(--display);font-size:17px;font-weight:700;letter-spacing:.04em;
@@ -164,24 +167,28 @@ main{padding-block:18px 40px}
 .seg button{flex:1;background:transparent;border:0;padding:7px 4px;font-size:12px;font-weight:600;
   letter-spacing:.06em;text-transform:uppercase;color:var(--txt-3)}
 .seg button[aria-pressed="true"]{background:var(--gold-dim);color:var(--gold-lt)}
-.t-tools{display:flex;gap:6px;flex-wrap:wrap}
-.t-tools button{flex:1;min-width:72px;border:1px solid var(--line);background:var(--sunk);color:var(--txt-2);
-  border-radius:8px;padding:7px 4px;font-size:12px;font-weight:600}
+.t-tools{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.t-tools button{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  border:1px solid var(--line);background:var(--sunk);color:var(--txt-2);
+  border-radius:8px;padding:7px 3px;font-size:12px;font-weight:600}
 .t-tools button:hover{border-color:var(--gold);color:var(--gold-lt)}
 .t-tools button.off{color:var(--bad);border-color:var(--bad);background:var(--bad-dim)}
-.t-lines{overflow-y:auto;flex:1;min-height:60px}
-.line{display:grid;grid-template-columns:1fr auto;gap:3px 10px;padding:9px 14px;border-bottom:1px solid var(--line);
-  cursor:pointer}
+.t-meta .hint:empty{display:none}
+.t-lines{overflow-y:auto;flex:1 1 auto;min-height:150px;overscroll-behavior:contain}
+/* name, quantity and money on ONE row — the item list is the part of the
+   screen that has to hold the most, so nothing else gets a row of its own. */
+.line{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:2px 10px;align-items:center;
+  padding:8px 14px;border-bottom:1px solid var(--line);cursor:pointer}
 .line:hover{background:var(--raise)}
-.line .nm{font-size:13.5px;font-weight:500}
-.line .amt{font-family:var(--mono);font-size:13.5px;color:var(--gold-lt)}
-.line .ctl{display:flex;align-items:center;gap:6px}
-.line .ctl button{width:26px;height:26px;border-radius:7px;border:1px solid var(--line-2);background:var(--raise);
-  color:var(--txt-2);display:grid;place-items:center;font-size:15px;line-height:1;padding:0}
+.line .nm{font-size:15px;font-weight:600;line-height:1.25}
+.line .amt{font-family:var(--mono);font-size:15px;color:var(--gold-lt)}
+.line .ctl{display:flex;align-items:center;gap:7px}
+.line .ctl button{width:30px;height:30px;border-radius:8px;border:1px solid var(--line-2);background:var(--raise);
+  color:var(--txt-2);display:grid;place-items:center;font-size:17px;line-height:1;padding:0}
 .line .ctl button:hover{border-color:var(--gold);color:var(--gold-lt)}
-.line .q{font-family:var(--mono);font-size:13px;min-width:22px;text-align:center}
-.line .sub{grid-column:1/-1;font-size:11.5px;color:var(--txt-3);font-family:var(--mono)}
-.line .note{grid-column:1/-1;font-size:11.5px;color:var(--info)}
+.line .q{font-family:var(--mono);font-size:15px;min-width:26px;text-align:center;color:var(--txt)}
+.line .sub{grid-column:1/-1;font-size:12.5px;color:var(--txt-3);font-family:var(--mono)}
+.line .note{grid-column:1/-1;font-size:12.5px;color:var(--info)}
 .t-sum{padding:11px 14px;border-top:1px solid var(--line);background:var(--sunk);display:grid;gap:5px}
 .row{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--txt-2)}
 .row .num{color:var(--txt)}
@@ -267,6 +274,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 .ord summary .when{font-family:var(--mono);font-size:12.5px;color:var(--txt-3)}
 .ord summary .tt{margin-inline-start:auto;font-family:var(--mono);font-size:14px}
 .ord.void summary{opacity:.55;text-decoration:line-through}
+.ord .l.gone{opacity:.55;text-decoration:line-through}
+.lnx{margin-inline-start:8px;width:26px;height:26px;border-radius:7px;border:1px solid var(--line-2);
+  background:var(--raise);color:var(--txt-3);font-size:13px;line-height:1;padding:0;vertical-align:middle}
+.lnx:hover{border-color:var(--bad);color:var(--bad);background:var(--bad-dim)}
 .ord .body{padding:0 12px 12px;padding-inline-start:60px;display:grid;gap:4px;font-size:13px;color:var(--txt-2)}
 .ord .body .l{display:flex;justify-content:space-between;gap:12px}
 .ord .body .acts{display:flex;gap:6px;margin-top:6px}
@@ -378,6 +389,31 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 /* ---------- responsive ---------- */
 @media (min-width:1000px){
   #salesCols{grid-template-columns:320px minmax(0,1fr)!important}
+}
+
+/* A landscape tablet is wide but SHORT. Everything round the item list gives
+   back a few pixels here so the list itself gets them, and the lines stay big
+   enough to read and tap at arm's length. */
+@media (min-width:921px) and (max-height:860px){
+  .brandrow{padding-block:6px}
+  .brand h1{font-size:19px}
+  .brand p{display:none}
+  .chip{padding:4px 9px}
+  nav.tabs button{padding-block:9px}
+  .t-head{padding:6px 14px}
+  .t-head .ttl{font-size:15px}
+  .t-meta{padding:8px 12px;gap:6px}
+  .seg button{padding:6px 4px}
+  .t-tools{gap:5px}
+  .t-tools button{padding:6px 3px;font-size:11.5px}
+  .t-sum{padding:8px 14px;gap:2px}
+  .row{font-size:12.5px}
+  .row.total{margin-top:3px;padding-top:6px;font-size:18px}
+  .row.total .num{font-size:17px}
+  .t-act{padding:8px 14px;gap:4px}
+  .send{padding:11px;font-size:13px}
+  .clear{font-size:11px}
+  .t-lines{min-height:128px}
 }
 @media (max-width:920px){
   .order-grid{grid-template-columns:minmax(0,1fr)}
@@ -763,6 +799,9 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     "US dollar rate":"سعر الدولار","Euro rate":"سعر اليورو","Pound rate":"سعر الجنيه الإسترليني",
     "fxHint":"السعر هو قيمة الوحدة الواحدة بالجنيه المصري اليوم. اترك السعر صفرًا و العملة لن تظهر في شاشة الدفع.",
     "Cash received":"المبلغ المستلم","Card amount":"مبلغ الفيزا","Exact":"بالظبط","Change":"الباقي",
+    "Extra":"زيادة","Extra kept":"زيادة محصّلة","Give as change":"يرجع باقي","Keep the extra":"تتحسب زيادة",
+    "Remove item":"حذف صنف","Remove":"حذف","How many to remove?":"تحذف كام؟","Item removed":"تم حذف الصنف",
+    "Refund":"مرتجع","Refunded":"مرتجع","Edited":"معدّلة","Edited by":"عدّلها",
     "Back":"رجوع","Cancel":"إلغاء","Save":"حفظ","Charge":"تحصيل","Apply":"تطبيق","Add":"إضافة",
     "Cashier":"كاشير","Supervisor":"مشرف","Manager":"مدير",
     "Paid by":"الدفع بـ","Print":"طباعة","Save file":"حفظ ملف","Next order":"طلب جديد",
@@ -1994,10 +2033,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         .map(function (o) { return LANG === "ar" && o.ar ? o.ar : o.name; }).join(", ");
       return '<div class="line" data-line="' + l.uid + '">' +
         '<span class="nm" dir="auto">' + esc(lineName(l)) + "</span>" +
-        '<span class="amt num">' + money(lineUnit(l) * l.qty) + "</span>" +
         '<span class="ctl"><button type="button" data-m="' + l.uid + '" aria-label="-">−</button>' +
         '<span class="q">' + l.qty + "</span>" +
         '<button type="button" data-p="' + l.uid + '" aria-label="+">+</button></span>' +
+        '<span class="amt num">' + money(lineUnit(l) * l.qty) + "</span>" +
         (ex ? '<span class="sub">+ ' + esc(ex) + "</span>" : "") +
         (l.note ? '<span class="note">✎ ' + esc(l.note) + "</span>" : "") +
         "</div>";
@@ -2021,7 +2060,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="row total"><span>' + esc(cur()) + '</span><span class="num">' + money(tt.total) + "</span></div>";
 
     $("svcBtn").textContent = t("Service") + (S.svcOn ? " ✓" : " ✕");
-    $("vatBtn").textContent = t("VAT") + (S.vatOn ? " ✓" : " ✕");
+    // the full Arabic for VAT is four words — far too wide for a button
+    $("vatBtn").textContent = (LANG === "ar" ? "الضريبة" : t("VAT")) + (S.vatOn ? " ✓" : " ✕");
     $("svcBtn").className = S.svcOn ? "" : "off";
     $("vatBtn").className = S.vatOn ? "" : "off";
     syncTable();
@@ -2339,6 +2379,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var due = Math.round(tt.total * 100) / 100;
     var method = "Cash";
     var payCur = "EGP";
+    var keepTip = false;            // "keep the change" — counted, not handed back
     var EGP_NOTES = [50, 100, 200, 500, 1000];
     var FX_NOTES = [5, 10, 20, 50, 100];
     var avail = fxList();
@@ -2360,7 +2401,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         '<div class="quick" id="quick"></div>' +
         '<div class="row" id="fxLine" hidden><span></span><span class="num"></span></div>' +
         '<div class="row" id="fxLine2" hidden><span></span><span class="num"></span></div>' +
-        '<div class="duebar"><span>' + esc(t("Change")) + " " + esc(cur()) + '</span><span class="num" id="changeVal">0.00</span></div>' +
+        '<div class="duebar"><span id="changeLbl">' + esc(t("Change")) + " " + esc(cur()) +
+          '</span><span class="num" id="changeVal">0.00</span></div>' +
+        '<div class="seg" id="extraSeg" hidden style="margin-top:2px">' +
+          '<button type="button" data-x="0" aria-pressed="true">' + esc(t("Give as change")) + "</button>" +
+          '<button type="button" data-x="1" aria-pressed="false">' + esc(t("Keep the extra")) + "</button>" +
+        "</div>" +
       "</div>" +
       (S.customer ? '<div class="hint">' + esc(S.customer.name) + " · " + esc(S.customer.phone) + " · +" +
         Math.floor(due / (Number(S.settings.ptsPer) || 50)) + " " + esc(t("points")) + "</div>" : "") +
@@ -2397,7 +2443,15 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         fl2.children[0].textContent = t("Value received");
         fl2.children[1].textContent = money(gotEgp) + " " + cur();
       }
-      $("changeVal").textContent = money(Math.max(0, gotEgp - need));
+      // anything over the bill is change by default; one tap turns it into a tip
+      var over = Math.max(0, Math.round((gotEgp - need) * 100) / 100);
+      $("extraSeg").hidden = !(over > 0.004);
+      if (!over) keepTip = false;
+      $("changeLbl").textContent = (keepTip ? t("Extra") : t("Change")) + " " + cur();
+      $("changeVal").textContent = money(over);
+      Array.prototype.forEach.call($("extraSeg").children, function (x) {
+        x.setAttribute("aria-pressed", String((x.dataset.x === "1") === keepTip));
+      });
       $("confirmPay").disabled = method !== "Card" && gotEgp + 0.001 < need;
     }
 
@@ -2425,6 +2479,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         upd();
       });
     }
+    $("extraSeg").addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-x]");
+      if (!b) return;
+      keepTip = b.dataset.x === "1";
+      upd();
+    });
     $("tender").addEventListener("input", upd);
     $("cardAmt").addEventListener("input", function () { $("tender").value = needFx(); upd(); });
     $("quick").addEventListener("click", function (e) {
@@ -2440,17 +2500,20 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       var need = Math.max(0, due - card);
       var got = method === "Card" ? 0 : (Number($("tender").value) || 0);
       var gotEgp = Math.round(got * rate() * 100) / 100;
-      var change = Math.max(0, Math.round((gotEgp - need) * 100) / 100);
+      var over = Math.max(0, Math.round((gotEgp - need) * 100) / 100);
+      var tip = keepTip ? over : 0;
+      var change = keepTip ? 0 : over;
       var fx = (payCur === "EGP" || method === "Card" || !got) ? null
         : { cur: payCur, rate: rate(), amt: got, egp: gotEgp };
-      commitOrder(tt, method, card, need, change, fx);
+      commitOrder(tt, method, card, need, change, fx, tip);
     });
     drawQuick();
     upd();
     setTimeout(function () { var el = $("tender"); if (el) { el.focus(); el.select(); } }, 60);
   }
 
-  function commitOrder(tt, method, cardAmt, cashAmt, change, fx) {
+  function commitOrder(tt, method, cardAmt, cashAmt, change, fx, tip) {
+    tip = Math.max(0, Number(tip) || 0);
     var now = new Date();
     var lines = S.cart.map(function (l) {
       var it = byId(l.id);
@@ -2467,8 +2530,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       type: S.type, table: S.table, note: S.note,
       by: S.me ? S.me.name : "", byId: S.me ? S.me.id : "",
       shift: S.shift ? S.shift.no : 0,
-      pay: method, card: cardAmt, cash: cashAmt, change: change,
-      fx: fx || null, egpIn: fx ? -change : cashAmt,
+      pay: method, card: cardAmt, cash: cashAmt, change: change, tip: tip,
+      // a tip in EGP stays in the drawer; a tip in a foreign note stays in the
+      // foreign box, where fx already counts it, so EGP in the drawer is unmoved
+      fx: fx || null, egpIn: fx ? -change : cashAmt + tip,
       cust: S.customer ? { id: S.customer.id, name: S.customer.name, phone: S.customer.phone } : null,
       disc: tt.disc, discInfo: S.disc,
       svcOn: S.svcOn, vatOn: S.vatOn,
@@ -2546,6 +2611,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         money((o.card || 0) + (o.cash || 0)) + "</span></div>" +
       (o.fx ? '<div class="l"><span>' + esc(t("Received")) + " " + esc(o.fx.cur) + " @ " + money(o.fx.rate) +
         "</span><span>" + esc(fxMoney(o.fx.cur, o.fx.amt)) + "</span></div>" : "") +
+      (o.tip ? '<div class="l"><span>' + esc(t("Extra")) + "</span><span>" + money(o.tip) + "</span></div>" : "") +
       (o.change ? '<div class="l"><span>' + esc(t("Change")) + "</span><span>" + money(o.change) + "</span></div>" : "");
   }
   function receiptHTML(o) {
@@ -2650,11 +2716,17 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     return out.sort(function (a, b) { return a.ts < b.ts ? 1 : -1; });
   }
   function sums(list) {
-    var s = { n: 0, gross: 0, cash: 0, card: 0, items: 0, disc: 0, voids: 0, vat: 0, srv: 0,
-              egpIn: 0, fx: {}, noVat: 0, noSrv: 0 };
+    var s = { n: 0, gross: 0, sub: 0, cash: 0, card: 0, items: 0, disc: 0, voids: 0, vat: 0, srv: 0,
+              tips: 0, refunds: 0, egpIn: 0, fx: {}, noVat: 0, noSrv: 0 };
     list.forEach(function (o) {
+      s.refunds += (Number(o.refund) || 0);
       if (o.void) { s.voids += 1; return; }
-      s.n += 1; s.gross += o.total; s.cash += (o.cash || 0); s.card += (o.card || 0);
+      // money over the bill that the customer left is ordinary revenue: it goes
+      // straight into gross. s.tips keeps it visible as a breakdown line only,
+      // and s.sub holds the real item subtotal so VAT still reconciles.
+      var xtra = Number(o.tip) || 0;
+      s.n += 1; s.gross += o.total + xtra; s.cash += (o.cash || 0); s.card += (o.card || 0);
+      s.tips += xtra; s.sub += (Number(o.sub) || 0);
       s.egpIn += (o.egpIn == null ? (o.cash || 0) : o.egpIn);
       if (o.fx && o.fx.cur) s.fx[o.fx.cur] = Math.round(((s.fx[o.fx.cur] || 0) + o.fx.amt) * 100) / 100;
       s.disc += (o.disc || 0); s.vat += (o.vat || 0); s.srv += (o.service || 0);
@@ -2699,10 +2771,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           "<dt>" + esc(t("Opening float")) + "</dt><dd>" + money(S.shift.float) + "</dd>" +
           "<dt>" + esc(t("Cash sales")) + "</dt><dd>" + money(s.cash) + "</dd>" +
           "<dt>" + esc(t("Card sales")) + "</dt><dd>" + money(s.card) + "</dd>" +
+          (s.tips ? "<dt>" + esc(t("Extra kept")) + "</dt><dd>" + money(s.tips) + "</dd>" : "") +
           "<dt>" + esc(t("Discounts")) + "</dt><dd>" + money(s.disc) + "</dd>" +
           "<dt>" + esc(t("Cash out")) + "</dt><dd>" + money(xc) + "</dd>" +
           fxRows(s.fx).map(function (r) { return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("") +
           "<dt>" + esc(t("Voided")) + "</dt><dd>" + s.voids + "</dd>" +
+          (s.refunds ? "<dt>" + esc(t("Refunded")) + "</dt><dd>" + money(s.refunds) + "</dd>" : "") +
           "<dt>" + esc(t("Items sold")) + "</dt><dd>" + s.items + "</dd>" +
         "</dl>" +
         '<div><button class="btn primary" id="closeShiftBtn" type="button">' + esc(t("Close shift")) + "</button></div></div>";
@@ -2732,6 +2806,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           "<dt>" + esc(t("Opening float")) + "</dt><dd>" + money(r.float) + "</dd>" +
           "<dt>" + esc(t("Cash sales")) + "</dt><dd>" + money(r.cash) + "</dd>" +
           "<dt>" + esc(t("Card sales")) + "</dt><dd>" + money(r.card) + "</dd>" +
+          (r.tips ? "<dt>" + esc(t("Extra kept")) + "</dt><dd>" + money(r.tips) + "</dd>" : "") +
           "<dt>" + esc(t("Expenses")) + "</dt><dd>− " + money(r.expenses || 0) + "</dd>" +
           "<dt>" + esc(t("Net income")) + "</dt><dd>" + money(r.net == null ? r.gross : r.net) + "</dd>" +
           "<dt>" + esc(t("Expected cash")) + "</dt><dd>" + money(r.expected) + "</dd>" +
@@ -2854,6 +2929,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         "<dt>" + esc(t("Opening float")) + "</dt><dd>" + money(S.shift.float) + "</dd>" +
         "<dt>" + esc(t("Cash sales")) + "</dt><dd>" + money(s.cash) + "</dd>" +
         "<dt>" + esc(t("Card sales")) + "</dt><dd>" + money(s.card) + "</dd>" +
+        (s.tips ? "<dt>" + esc(t("Extra kept")) + "</dt><dd>" + money(s.tips) + "</dd>" : "") +
         "<dt>" + esc(t("Cash out")) + "</dt><dd>− " + money(xc) + "</dd>" +
         fxRows(s.fx).map(function (r) { return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("") +
         "<dt>" + esc(t("Net income")) + "</dt><dd>" + money(s.gross - xa) + "</dd>" +
@@ -2876,7 +2952,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
   function finishShift(s, expected, counted, xc, xa) {
     var rec = { no: S.shift.no, by: S.shift.by, openedAt: S.shift.openedAt, float: S.shift.float,
-      cashOut: xc || 0, expenses: xa || 0, net: s.gross - (xa || 0), fx: s.fx || {},
+      cashOut: xc || 0, expenses: xa || 0, tips: s.tips || 0, net: s.gross - (xa || 0), fx: s.fx || {},
       closedBy: S.me ? S.me.name : "", closedAt: new Date().toISOString(), closedTs: Date.now(),
       n: s.n, gross: s.gross, cash: s.cash, card: s.card, items: s.items, disc: s.disc, voids: s.voids,
       expected: expected, counted: counted, diff: Math.round((counted - expected) * 100) / 100 };
@@ -2896,6 +2972,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="l"><span>' + esc(t("Voided")) + "</span><span>" + rec.voids + "</span></div>" +
       '<div class="l"><span>' + esc(t("Cash sales")) + "</span><span>" + money(rec.cash) + "</span></div>" +
       '<div class="l"><span>' + esc(t("Card sales")) + "</span><span>" + money(rec.card) + "</span></div>" +
+      (rec.tips ? '<div class="l"><span>' + esc(t("Extra kept")) + "</span><span>" + money(rec.tips) + "</span></div>" : "") +
       '<div class="l"><span>' + esc(t("Gross")) + " " + esc(cur()) + "</span><span>" + money(rec.gross) + "</span></div>" +
       '<div class="l big"><span>' + esc(t("Net income")) + " " + esc(cur()) + "</span><span>" + money(rec.net) + "</span></div><hr>" +
       '<div class="l"><span>' + esc(t("Opening float")) + "</span><span>" + money(rec.float) + "</span></div>" +
@@ -3026,11 +3103,13 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       tile(t("Orders"), s.n, "") +
       tile(t("Revenue") + " " + cur(), money(s.gross), "gold") +
       tile(t("Expenses"), money(xa), xa ? "bad" : "") +
+      (s.tips ? tile(t("Extra kept") + " " + cur(), money(s.tips), "gold") : "") +
       tile(t("Net income") + " " + cur(), money(s.gross - xa), "ok") +
       tile(t("Items sold"), s.items, "") +
       tile(t("Average ticket"), s.n ? money(s.gross / s.n) : "0.00", "") +
       tile(t("Discounts"), money(s.disc), s.disc ? "warn" : "") +
-      tile(t("Voided"), s.voids, s.voids ? "bad" : "");
+      tile(t("Voided"), s.voids, s.voids ? "bad" : "") +
+      (s.refunds ? tile(t("Refunded") + " " + cur(), money(s.refunds), "bad") : "");
 
     function block(title, rows) {
       return '<div class="panel padded"><p class="eyebrow">' + esc(title) + "</p>" +
@@ -3056,7 +3135,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     $("reportGrid").innerHTML =
       block(t("By payment"), [
         [t("Cash"), money(s.cash)], [t("Card"), money(s.card)]
-      ].concat(fxRows(s.fx)).concat([
+      ].concat(s.tips ? [[t("Extra kept"), money(s.tips)]] : []).concat(fxRows(s.fx)).concat([
         [t("Service"), money(s.srv)], [t("VAT"), money(s.vat)]
       ])) +
       block(t("By category"), sortRows(byCat, function (k) { return t(k); })) +
@@ -3092,25 +3171,134 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         '<span class="pill free">' + esc(t(o.type)) + (o.table ? " · " + esc(o.table) : "") + "</span>" +
         '<span class="pill free">' + esc(t(o.pay || "Cash")) + "</span>" +
         (o.void ? '<span class="pill out">' + esc(t("Voided")) + "</span>" : "") +
+        (!o.void && (o.removed || []).length ? '<span class="pill info">' + esc(t("Edited")) + "</span>" : "") +
         '<span class="tt num">' + money(o.total) + "</span></summary>" +
-        '<div class="body">' + o.lines.map(function (l) {
+        '<div class="body">' + o.lines.map(function (l, ix) {
           return '<span class="l"><span dir="auto">' + l.qty + " × " +
-            esc(LANG === "ar" && l.ar ? l.ar : l.name) + '</span><span class="num">' + money(l.amount) + "</span></span>";
+            esc(LANG === "ar" && l.ar ? l.ar : l.name) + '</span><span class="num">' + money(l.amount) +
+            (o.void ? "" : ' <button class="lnx" type="button" data-rm="' + o.no + '" data-ix="' + ix +
+              '" aria-label="' + esc(t("Remove item")) + '" title="' + esc(t("Remove item")) + '">✕</button>') +
+            "</span></span>";
+        }).join("") +
+        (o.removed || []).map(function (r) {
+          return '<span class="l gone"><span dir="auto">' + r.qty + " × " +
+            esc(LANG === "ar" && r.ar ? r.ar : r.name) + '</span><span class="num">− ' + money(r.amount) + "</span></span>";
         }).join("") +
         (o.disc ? '<span class="l"><span>' + esc(t("Discount")) + '</span><span class="num">− ' + money(o.disc) + "</span></span>" : "") +
         (o.cust ? '<span class="l"><span>' + esc(o.cust.name) + " · " + esc(o.cust.phone) + "</span><span></span></span>" : "") +
         (o.note ? '<span class="l"><span>✎ ' + esc(o.note) + "</span><span></span></span>" : "") +
         '<span class="l"><span>' + esc(t("Cashier")) + " " + esc(o.by) + "</span><span></span></span>" +
         (o.voidBy ? '<span class="l"><span>' + esc(t("Voided by")) + " " + esc(o.voidBy) + "</span><span></span></span>" : "") +
+        (o.refund ? '<span class="l"><span>' + esc(t("Refunded")) + " · " + esc(t("Edited by")) + " " +
+          esc(o.editedBy || "") + '</span><span class="num">− ' + money(o.refund) + "</span></span>" : "") +
         '<span class="acts"><button class="btn sm" data-rp="' + o.no + '" type="button">' + esc(t("Reprint")) + "</button>" +
         (o.void ? "" : '<button class="btn sm danger" data-vo="' + o.no + '" type="button">' + esc(t("Void")) + "</button>") +
         "</span></div></details>";
     }).join("") : '<div class="empty">' + esc(t("Nothing rung up on this day.")) + "</div>";
   }
+  /* ---- taking an item off a check that is already charged ----
+     The rates are read back off the check itself, not from today's settings,
+     so re-pricing an old order can never apply a VAT that was not on it. */
+  function reprice(o) {
+    var oldNet = Math.max(0, (Number(o.sub) || 0) - (Number(o.disc) || 0));
+    var srvRate = oldNet > 0 ? (Number(o.service) || 0) / oldNet
+      : (o.svcOn === false ? 0 : (Number(S.settings.service) || 0) / 100);
+    var vBase = oldNet + (Number(o.service) || 0);
+    var vatRate = vBase > 0 ? (Number(o.vat) || 0) / vBase
+      : (o.vatOn === false ? 0 : (Number(S.settings.vat) || 0) / 100);
+
+    var sub = o.lines.reduce(function (a, l) { return a + (Number(l.amount) || 0); }, 0);
+    var d = o.discInfo, disc = 0;
+    if (d) disc = d.kind === "%" ? sub * (Number(d.value) || 0) / 100 : Math.min(sub, Number(d.value) || 0);
+    var net = Math.max(0, sub - disc);
+    var srv = net * srvRate;
+    var vat = (net + srv) * vatRate;
+    o.sub = r2(sub); o.disc = r2(disc); o.service = r2(srv); o.vat = r2(vat);
+    o.total = r2(net + srv + vat);
+  }
+
+  function removeFromOrder(ord, ix, qty, who) {
+    var l = ord.lines[ix];
+    if (!l) return;
+    qty = Math.max(1, Math.min(l.qty, Math.round(Number(qty) || 1)));
+    var before = Number(ord.total) || 0;
+    var oldCash = Number(ord.cash) || 0;
+    var oldEgpIn = ord.egpIn == null ? oldCash : Number(ord.egpIn) || 0;
+
+    var it = byId(l.id), di = {}, dn = {};
+    if (it) {
+      if (it.track) { it.stock += qty; di[it.id] = (di[it.id] || 0) + qty; }
+      (it.recipe || []).forEach(function (r) {
+        var g = ingById(r.ing);
+        if (!g) return;
+        var back = (Number(r.qty) || 0) * qty;
+        g.stock = Math.round((g.stock + back) * 1000) / 1000;
+        dn[g.id] = (dn[g.id] || 0) + back;
+      });
+    }
+
+    ord.removed = (ord.removed || []).concat([{
+      name: l.name, ar: l.ar || "", qty: qty, amount: r2((Number(l.unit) || 0) * qty),
+      by: who.name, at: new Date().toISOString()
+    }]);
+    if (qty >= l.qty) ord.lines.splice(ix, 1);
+    else { l.qty -= qty; l.amount = r2((Number(l.unit) || 0) * l.qty); }
+
+    if (!ord.lines.length) {                    // nothing left on it — that is a void
+      ord.void = true; ord.voidBy = who.name; ord.voidAt = new Date().toISOString();
+    }
+    reprice(ord);
+
+    // money back to the customer, taken from cash first, then off the card
+    var back = r2(Math.max(0, before - (Number(ord.total) || 0)));
+    var fromCash = Math.min(oldCash, back);
+    var fromCard = r2(back - fromCash);
+    ord.cash = r2(oldCash - fromCash);
+    ord.card = Math.max(0, r2((Number(ord.card) || 0) - fromCard));
+    ord.egpIn = r2(oldEgpIn - fromCash);
+    ord.refund = r2((Number(ord.refund) || 0) + back);
+    ord.editedBy = who.name; ord.editedAt = new Date().toISOString();
+    ord.upd = Date.now();
+
+    queueStock(di, dn);
+    queueOrder(ord, S.salesDay);
+    renderSales(); renderItems(); updateBadges();
+    toast(t("Item removed") + " · " + t("Refund") + " " + money(back));
+  }
+
   $("dayPick").addEventListener("change", function (e) { S.salesDay = e.target.value; renderSales(); });
   $("orderList").addEventListener("click", function (e) {
     var rp = e.target.closest("button[data-rp]"), vo = e.target.closest("button[data-vo]");
+    var rm = e.target.closest("button[data-rm]");
     var list = S.sales[S.salesDay] || [];
+    if (rm) {
+      e.preventDefault();
+      var ro = list.filter(function (x) { return String(x.no) === rm.dataset.rm; })[0];
+      if (!ro) return;
+      var rix = Number(rm.dataset.ix);
+      var rl = ro.lines[rix];
+      if (!rl) return;
+      var label = (LANG === "ar" && rl.ar ? rl.ar : rl.name);
+      var doIt = function (n) {
+        askManager(t("Remove item") + " · " + label + " · " + ro.ref, function (who) {
+          removeFromOrder(ro, rix, n, who);
+        });
+      };
+      if (rl.qty <= 1) { doIt(1); return; }
+      modal('<div class="padded stack"><h3>' + esc(t("Remove item")) + "</h3>" +
+        '<p class="hint" style="margin:0">' + esc(label) + " · " + esc(ro.ref) + "</p>" +
+        '<div class="fld"><label for="rmQty">' + esc(t("How many to remove?")) + "</label>" +
+        '<input class="big-in" id="rmQty" type="number" min="1" step="1" max="' + rl.qty +
+        '" value="' + rl.qty + '"></div></div>' +
+        '<div class="acts"><button class="btn" id="rmNo" type="button">' + esc(t("Cancel")) + "</button>" +
+        '<button class="btn primary danger" id="rmYes" type="button">' + esc(t("Remove")) + "</button></div>");
+      $("rmNo").addEventListener("click", closeModal);
+      $("rmYes").addEventListener("click", function () {
+        var n = Math.max(1, Math.min(rl.qty, Math.round(Number($("rmQty").value) || 1)));
+        closeModal(); doIt(n);
+      });
+      return;
+    }
     if (rp) {
       var o = list.filter(function (x) { return String(x.no) === rp.dataset.rp; })[0];
       if (o) showReceipt(o, []);
@@ -3154,6 +3342,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="l"><span>' + esc(t("Items sold")) + "</span><span>" + s.items + "</span></div>" +
       '<div class="l"><span>' + esc(t("Cash sales")) + "</span><span>" + money(s.cash) + "</span></div>" +
       '<div class="l"><span>' + esc(t("Card sales")) + "</span><span>" + money(s.card) + "</span></div>" +
+      (s.tips ? '<div class="l"><span>' + esc(t("Extra kept")) + "</span><span>" + money(s.tips) + "</span></div>" : "") +
       fxRows(s.fx).map(function (r) {
         return '<div class="l"><span>' + esc(r[0]) + "</span><span>" + esc(r[1]) + "</span></div>"; }).join("") +
       '<div class="l"><span>' + esc(t("Discounts")) + "</span><span>" + money(s.disc) + "</span></div>" +
@@ -3922,19 +4111,22 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       [H(t("Sales")), H(cu)],
       [t("Orders"), s.n],
       [t("Items sold"), s.items],
-      [t("Subtotal"), M(r2(s.gross - s.vat - s.srv))],
+      [t("Subtotal"), M(r2(s.sub))],
       [t("Discounts"), M(r2(s.disc))],
       [t("Service"), M(r2(s.srv))],
       [t("VAT"), M(r2(s.vat))],
+      [t("Extra kept"), M(r2(s.tips))],
       [B(t("Gross")), BM(r2(s.gross))],
       [t("Average ticket"), M(s.n ? r2(s.gross / s.n) : 0)],
       [t("Voided"), s.voids],
+      [t("Refunded"), M(r2(s.refunds))],
       [t("Checks without VAT"), s.noVat || 0],
       [t("Checks without service"), s.noSrv || 0],
       [],
       [H(t("By payment")), H(cu)],
       [t("Cash"), M(r2(s.cash))],
-      [t("Card"), M(r2(s.card))]
+      [t("Card"), M(r2(s.card))],
+      [t("Extra kept"), M(r2(s.tips))]
     ];
     Object.keys(s.fx || {}).forEach(function (c) {
       if (s.fx[c]) sum.push([t("Foreign notes") + " " + c, r2(s.fx[c])]);
@@ -3961,13 +4153,13 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var oh = [t("Order"), t("Time"), t("Shift"), t("Type"), t("Table"), t("Cashier"), t("Customer"),
       t("Paid by"), t("Currency"), t("Received"), t("Rate"), t("Voided"), t("Item"), t("Extras"),
       t("Kitchen note"), t("Quantity"), t("Price"), t("Amount"), t("Discount"), t("Service"),
-      t("VAT"), t("Total")];
+      t("VAT"), t("Total"), t("Extra")];
     var orows = [oh.map(H)];
-    var firstData = 2, amtTotal = 0, totTotal = 0;
+    var firstData = 2, amtTotal = 0, totTotal = 0, tipTotal = 0;
     live.concat(orders.filter(function (o) { return o.void; })).forEach(function (o) {
       o.lines.forEach(function (l, ix) {
         amtTotal += o.void ? 0 : l.amount;
-        if (ix === 0 && !o.void) totTotal += o.total;
+        if (ix === 0 && !o.void) { totTotal += o.total; tipTotal += (Number(o.tip) || 0); }
         orows.push([
           o.ref, o.time, o.shift || "", t(o.type), o.table || "", o.by || "",
           o.cust ? o.cust.name + " " + o.cust.phone : "",
@@ -3978,7 +4170,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           (l.opts || []).map(function (x) { return LANG === "ar" && x.ar ? x.ar : x.name; }).join(" / "),
           l.note || "", l.qty, M(r2(l.unit)), M(r2(l.amount)),
           ix === 0 ? M(r2(o.disc || 0)) : "", ix === 0 ? M(r2(o.service)) : "",
-          ix === 0 ? M(r2(o.vat)) : "", ix === 0 ? M(r2(o.total)) : ""
+          ix === 0 ? M(r2(o.vat)) : "", ix === 0 ? M(r2(o.total)) : "",
+          ix === 0 && o.tip ? M(r2(o.tip)) : ""
         ]);
       });
     });
@@ -3988,6 +4181,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       tot[0] = B(t("Total"));
       tot[17] = sumF("R", firstData, lastRow, r2(amtTotal));
       tot[21] = sumF("V", firstData, lastRow, r2(totTotal));
+      tot[22] = sumF("W", firstData, lastRow, r2(tipTotal));
       orows.push(tot);
     }
 
@@ -4157,7 +4351,26 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
 
   /* ============ render all + boot ============ */
+
+  /* The header changes height with the language, the window width and how many
+     chips are showing. Measure it instead of guessing, so the ticket always
+     reaches the bottom of the screen and the item list gets every spare pixel. */
+  function fitTicket() {
+    try {
+      var h = document.querySelector("header.top");
+      if (!h) return;
+      var px = Math.round(h.getBoundingClientRect().height);
+      if (px > 0) document.documentElement.style.setProperty("--hdr", px + "px");
+    } catch (e) {}
+  }
+  window.addEventListener("resize", fitTicket);
+  window.addEventListener("orientationchange", function () { setTimeout(fitTicket, 260); });
+  if (window.ResizeObserver) {
+    try { new ResizeObserver(fitTicket).observe(document.querySelector("header.top")); } catch (e) {}
+  }
+
   function renderAll() {
+    fitTicket();
     renderCats(); renderItems(); renderTicket(); renderShiftChip(); updateBadges();
     if (S.tab === "tables") renderTables();
     if (S.tab === "kitchen") renderKds();
