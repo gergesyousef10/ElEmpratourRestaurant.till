@@ -409,6 +409,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 [dir="rtl"] .rcpt .rh .n{letter-spacing:0;text-transform:none}
 [dir="rtl"] .brand h1{font-size:21px}
 [dir="rtl"] .num,[dir="rtl"] input[type="number"]{direction:ltr;unicode-bidi:plaintext}
+/* A cell that flips to LTR so its digits read correctly also flips what "end"
+   means, so it drifted to the physical right while its Arabic header stayed on
+   the left. Pin the pair to the same side. */
+[dir="rtl"] td.r,[dir="rtl"] th.r{text-align:left}
+[dir="rtl"] td.r input,[dir="rtl"] td input{text-align:center}
 [dir="rtl"] .item .pr,[dir="rtl"] .line .amt,[dir="rtl"] .line .sub{direction:ltr}
 
 /* ---------- responsive ---------- */
@@ -832,7 +837,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     "Transfer to fridge":"تحويل للثلاجة","How much to move?":"تنقل كام؟","Moved to the fridge":"اتحول للثلاجة",
     "Needs moving from the main store":"محتاج تحويل من المخزن الرئيسي","Stock total":"الإجمالي",
     "Send the day":"ابعت اليوم","Your email":"إيميلك","Tax reg. no.":"س.ت. ضريبي",
-    "Stocktake":"جرد","History":"السجل","Save the count":"حفظ الجرد","Counted":"المعدود","Units":"وحدات","Items short":"أصناف ناقصة",
+    "Stocktake":"جرد","History":"السجل","Cleared before paying":"فواتير اتمسحت قبل الدفع","Save the count":"حفظ الجرد","Counted":"المعدود","Units":"وحدات","Items short":"أصناف ناقصة",
     "Value at selling price":"القيمة بسعر البيع","Items with a difference":"أصناف فيها فرق","Everything matched.":"كل حاجة مطابقة.","Nothing counted yet.":"لسه ما عدّيتش حاجة.",
     "No stocktake yet.":"مفيش جرد لسه.","Last stocktake":"آخر جرد","Type what is really there. Leave a box empty to skip that item.":"اكتب اللي موجود فعلاً. سيب الخانة فاضية لو مش عايز تعدّ الصنف ده.","Today's copy":"نسخة النهارده","Sent":"اتبعت","Not sent yet":"لسه ما اتبعتش",
     "The Excel report and the rescue file are attached.":"مرفق ملف الإكسل و ملف الإنقاذ.","Attach the two files from the Downloads folder.":"ارفق الملفين من مجلد التنزيلات.",
@@ -1189,7 +1194,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     counter: 1,
     menu: [], groups: [], ings: [], tables: [], customers: [], expenses: [],
     sales: {}, staff: [], shifts: [], clock: [],
-    parked: [], counts: [],
+    parked: [], counts: [], cleared: [],
     me: null, shift: null,
     cart: [],                 // [{uid,id,qty,opts:[{name,ar,price}],note,disc}]
     type: "Dine-in", table: "", customer: null, note: "", disc: null,
@@ -1266,7 +1271,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function snapshot() {
     return { settings: S.settings, counter: S.counter, menu: S.menu, groups: S.groups, ings: S.ings,
       tables: S.tables, customers: S.customers, expenses: S.expenses, sales: S.sales, staff: S.staff,
-      shift: S.shift, shifts: S.shifts, clock: S.clock, parked: S.parked, counts: S.counts };
+      shift: S.shift, shifts: S.shifts, clock: S.clock, parked: S.parked, counts: S.counts,
+      cleared: S.cleared };
   }
   function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(snapshot())); } catch (e) {} }
   function loadLocal() {
@@ -1288,7 +1294,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (d.settings) S.settings = Object.assign({}, DEFAULT_SETTINGS, d.settings);
     S.settings.fx = Object.assign({ USD: 0, EUR: 0, GBP: 0 }, S.settings.fx || {});
     if (typeof d.counter === "number") S.counter = d.counter;
-    ["menu", "groups", "ings", "tables", "customers", "expenses", "staff", "shifts", "clock", "parked", "counts"].forEach(function (k) {
+    ["menu", "groups", "ings", "tables", "customers", "expenses", "staff", "shifts", "clock", "parked", "counts",
+     "cleared"].forEach(function (k) {
       if (Array.isArray(d[k])) S[k] = d[k];
     });
     if (d.sales && typeof d.sales === "object") S.sales = d.sales;
@@ -2178,7 +2185,29 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (l.qty <= 0) S.cart = S.cart.filter(function (x) { return x.uid !== u; });
     renderTicket(); renderItems();
   }
+  /* A ticket wiped before it was ever charged leaves no trace anywhere else:
+     no sale, no stock movement, no receipt. That is exactly the gap worth
+     watching, so every wipe that had items on it is written down. */
+  function logCleared(why) {
+    if (!S.cart.length) return;
+    var tt = totals();
+    var rec = {
+      id: "x" + Date.now().toString(36), at: new Date().toISOString(),
+      by: S.me ? S.me.name : "", byId: S.me ? S.me.id : "",
+      shift: S.shift ? S.shift.no : 0, type: S.type, table: S.table || "", why: why || "clear",
+      count: S.cart.reduce(function (a, l) { return a + l.qty; }, 0),
+      total: r2(tt.total),
+      lines: S.cart.map(function (l) {
+        var it = byId(l.id);
+        return { name: it ? it.name : "", ar: it ? it.ar : "", qty: l.qty, amount: r2(lineUnit(l) * l.qty) };
+      })
+    };
+    S.cleared = [rec].concat(S.cleared || []).slice(0, 300);
+    put("state/cleared", { list: S.cleared });
+  }
+
   $("clearBtn").addEventListener("click", function () {
+    logCleared("clear");
     releaseTable();
     freshTicket();
     renderTicket(); renderItems();
@@ -3324,6 +3353,9 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var b = e.target.closest("button[data-move]");
     if (b) askMove(b.dataset.move);
   });
+  function dayCleared(k) {
+    return (S.cleared || []).filter(function (c) { return dayKey(new Date(c.at)) === k; });
+  }
   function lastCount() { return (S.counts || [])[0] || null; }
   function lastCountLabel() {
     var c = lastCount();
@@ -3417,6 +3449,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var s = sums(orders);
 
     var xl = dayExpenses(S.salesDay), xa = sumExp(xl);
+    var xcl = dayCleared(S.salesDay);
     $("salesTiles").innerHTML =
       tile(t("Orders"), s.n, "") +
       tile(t("Revenue") + " " + cur(), money(s.gross), "gold") +
@@ -3427,7 +3460,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       tile(t("Average ticket"), s.n ? money(s.gross / s.n) : "0.00", "") +
       tile(t("Discounts"), money(s.disc), s.disc ? "warn" : "") +
       tile(t("Voided"), s.voids, s.voids ? "bad" : "") +
-      (s.refunds ? tile(t("Refunded") + " " + cur(), money(s.refunds), "bad") : "");
+      (s.refunds ? tile(t("Refunded") + " " + cur(), money(s.refunds), "bad") : "") +
+      (xcl.length ? tile(t("Cleared before paying"), xcl.length, "warn") : "");
 
     function block(title, rows) {
       return '<div class="panel padded"><p class="eyebrow">' + esc(title) + "</p>" +
@@ -3463,7 +3497,15 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       block(t("Expenses"), xl.length
         ? xl.map(function (e) { return [t(e.cat || "Other") + (e.note ? " · " + e.note : ""), "− " + money(e.amount)]; })
             .concat([[t("Net income"), money(s.gross - xa)]])
-        : [[t("Net income"), money(s.gross)]]);
+        : [[t("Net income"), money(s.gross)]]) +
+      // who wiped a ticket that already had items on it, and what was on it
+      (xcl.length ? block(t("Cleared before paying"), xcl.map(function (c) {
+        return [hhmm(c.at) + " · " + (c.by || "—") + (c.table ? " · " + c.table : "") +
+          " · " + c.count + " " + t("items"),
+          money(c.total) + " · " + c.lines.map(function (l) {
+            return l.qty + "× " + (LANG === "ar" && l.ar ? l.ar : l.name);
+          }).join(", ")];
+      })) : "");
 
     var agg = {};
     live.forEach(function (o) {
@@ -4470,6 +4512,18 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     sum.push([t("Cash out"), M(r2(xc))]);
     sum.push([]);
     sum.push([B(t("Net income") + " " + cu), BM(r2(s.gross - xa))]);
+
+    var xcl2 = dayCleared(k);
+    if (xcl2.length) {
+      sum.push([]);
+      sum.push([H(t("Cleared before paying")), H(t("By")), H(t("Table")), H(cu), H(t("Item"))]);
+      xcl2.forEach(function (c) {
+        sum.push([hhmm(c.at), c.by || "", c.table || "", M(r2(c.total)),
+          c.lines.map(function (l) { return l.qty + "x " + l.name; }).join(", ")]);
+      });
+      sum.push([B(t("Cleared before paying")), "", "",
+        BM(r2(xcl2.reduce(function (a2, c) { return a2 + (Number(c.total) || 0); }, 0))), ""]);
+    }
     sum.push([]);
     sum.push([H(t("Shift")), H(t("Opened by")), H(t("Closed by")), H(t("Opening float")),
               H(t("Expected cash")), H(t("Counted")), H(t("Difference"))]);
