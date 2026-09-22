@@ -31,7 +31,7 @@
   --r:12px;
   --display:"Cormorant Garamond",Georgia,"Times New Roman",serif;
   --ui:"Barlow","Segoe UI",system-ui,-apple-system,sans-serif;
-  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,"Cairo",monospace;
 }
 @media (prefers-color-scheme: light){
   :root:not([data-theme="dark"]){
@@ -145,14 +145,17 @@ main{padding-block:18px 40px}
   padding:10px 13px;margin-bottom:12px}
 .search::placeholder{color:var(--txt-3)}
 .items{display:grid;grid-template-columns:repeat(auto-fill,minmax(166px,1fr));gap:10px}
-.item{text-align:start;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+.item{overflow:hidden;text-align:start;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
   padding:11px 12px 9px;display:flex;flex-direction:column;gap:7px;min-height:90px;
   transition:border-color .12s,transform .12s}
 .item:hover:not(:disabled){border-color:var(--gold);transform:translateY(-1px)}
 .item:disabled{opacity:.42;cursor:not-allowed}
 .item .nm{font-weight:600;font-size:14.5px;line-height:1.25;color:var(--txt)}
 .item .ar{font-size:12px;color:var(--txt-3);line-height:1.3;margin-top:-3px}
-.item .foot{margin-top:auto;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.item .foot{margin-top:auto;display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+  min-width:0}
+.item .foot .pill{min-width:0;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+.item .foot .pr{flex:0 0 auto}
 .item .pr{font-family:var(--mono);font-size:14px;color:var(--gold-lt);font-weight:500}
 .item .pr s{color:var(--txt-3);font-size:11.5px;font-weight:400;margin-inline-start:3px}
 .pill{font-family:var(--mono);font-size:10.5px;padding:2px 7px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
@@ -262,6 +265,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 .stripe.ok{background:var(--ok)} .stripe.low{background:var(--warn)} .stripe.out{background:var(--bad)}
 .stripe.free{background:var(--line-2)}
 .stepper{display:inline-flex;align-items:center;gap:6px}
+.stepper .btn.sm{width:auto;min-width:40px;padding-inline:9px;font-family:var(--mono)}
 .stepper button{width:28px;height:28px;border-radius:8px;border:1px solid var(--line-2);background:var(--raise);
   color:var(--txt-2);font-size:16px;line-height:1;padding:0}
 .stepper button:hover{border-color:var(--gold);color:var(--gold-lt)}
@@ -414,6 +418,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
    the left. Pin the pair to the same side. */
 [dir="rtl"] td.r,[dir="rtl"] th.r{text-align:left}
 [dir="rtl"] td.r input,[dir="rtl"] td input{text-align:center}
+/* Same trap everywhere else a number sits under or beside Arabic text: the
+   value flips to LTR so the digits read correctly, which also flips which end
+   "start" means, and it drifts away from its own label. Pin them together. */
+[dir="rtl"] .tile .v,[dir="rtl"] .mrow .num,[dir="rtl"] .kv dd{text-align:right}
+/* a caption ending in a Latin word (“الخامات EGP”) would otherwise sit a few
+   pixels off its own number; take the caption's direction from its first word */
+[dir="rtl"] .tile .k{unicode-bidi:plaintext}
+[dir="rtl"] .row .num,[dir="rtl"] .l .num{text-align:left}
 [dir="rtl"] .item .pr,[dir="rtl"] .line .amt,[dir="rtl"] .line .sub{direction:ltr}
 
 /* ---------- responsive ---------- */
@@ -837,7 +849,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     "Transfer to fridge":"تحويل للثلاجة","How much to move?":"تنقل كام؟","Moved to the fridge":"اتحول للثلاجة",
     "Needs moving from the main store":"محتاج تحويل من المخزن الرئيسي","Stock total":"الإجمالي",
     "Send the day":"ابعت اليوم","Your email":"إيميلك","Tax reg. no.":"س.ت. ضريبي",
-    "Stocktake":"جرد","History":"السجل","Cleared before paying":"فواتير اتمسحت قبل الدفع","Save the count":"حفظ الجرد","Counted":"المعدود","Units":"وحدات","Items short":"أصناف ناقصة",
+    "Stocktake":"جرد","History":"السجل","Cleared before paying":"فواتير اتمسحت قبل الدفع","Paid back out":"مرتجع من الدرج","Save the count":"حفظ الجرد","Counted":"المعدود","Units":"وحدات","Items short":"أصناف ناقصة",
     "Value at selling price":"القيمة بسعر البيع","Items with a difference":"أصناف فيها فرق","Everything matched.":"كل حاجة مطابقة.","Nothing counted yet.":"لسه ما عدّيتش حاجة.",
     "No stocktake yet.":"مفيش جرد لسه.","Last stocktake":"آخر جرد","Type what is really there. Leave a box empty to skip that item.":"اكتب اللي موجود فعلاً. سيب الخانة فاضية لو مش عايز تعدّ الصنف ده.","Today's copy":"نسخة النهارده","Sent":"اتبعت","Not sent yet":"لسه ما اتبعتش",
     "The Excel report and the rescue file are attached.":"مرفق ملف الإكسل و ملف الإنقاذ.","Attach the two files from the Downloads folder.":"ارفق الملفين من مجلد التنزيلات.",
@@ -1194,7 +1206,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     counter: 1,
     menu: [], groups: [], ings: [], tables: [], customers: [], expenses: [],
     sales: {}, staff: [], shifts: [], clock: [],
-    parked: [], counts: [], cleared: [],
+    parked: [], counts: [], cleared: [], adjust: [],
     me: null, shift: null,
     cart: [],                 // [{uid,id,qty,opts:[{name,ar,price}],note,disc}]
     type: "Dine-in", table: "", customer: null, note: "", disc: null,
@@ -1272,7 +1284,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     return { settings: S.settings, counter: S.counter, menu: S.menu, groups: S.groups, ings: S.ings,
       tables: S.tables, customers: S.customers, expenses: S.expenses, sales: S.sales, staff: S.staff,
       shift: S.shift, shifts: S.shifts, clock: S.clock, parked: S.parked, counts: S.counts,
-      cleared: S.cleared };
+      cleared: S.cleared, adjust: S.adjust };
   }
   function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(snapshot())); } catch (e) {} }
   function loadLocal() {
@@ -1295,7 +1307,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     S.settings.fx = Object.assign({ USD: 0, EUR: 0, GBP: 0 }, S.settings.fx || {});
     if (typeof d.counter === "number") S.counter = d.counter;
     ["menu", "groups", "ings", "tables", "customers", "expenses", "staff", "shifts", "clock", "parked", "counts",
-     "cleared"].forEach(function (k) {
+     "cleared", "adjust"].forEach(function (k) {
       if (Array.isArray(d[k])) S[k] = d[k];
     });
     if (d.sales && typeof d.sales === "object") S.sales = d.sales;
@@ -1331,7 +1343,9 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   var DBSTATE = "pending";   // pending | on | off
   var OUT = [];
   function loadOut() { try { OUT = JSON.parse(localStorage.getItem(LS_KEY + ":out") || "[]"); } catch (e) { OUT = []; } }
-  function saveOut() { try { localStorage.setItem(LS_KEY + ":out", JSON.stringify(OUT.slice(-800))); } catch (e) {} }
+  // flush() drains from the front, so trimming must drop the newest, never the
+  // next one due to be sent
+  function saveOut() { try { localStorage.setItem(LS_KEY + ":out", JSON.stringify(OUT.slice(0, 800))); } catch (e) {} }
   function withTimeout(p, ms) {
     return Promise.race([p, new Promise(function (_, rej) {
       setTimeout(function () { rej(new Error("timeout")); }, ms || 12000);
@@ -1340,7 +1354,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function queue(op) {
     if (DBSTATE === "off") return;
     op.qid = DEVICE + "-" + uid();
-    if (op.t === "doc") OUT = OUT.filter(function (x) { return !(x.t === "doc" && x.path === op.path); });
+    // collapse older writes of the same document, but never the one being sent
+    // right now — dropping it would make flush() discard whatever took its place
+    if (op.t === "doc") OUT = OUT.filter(function (x, ix) {
+      return (ix === 0 && flushing) || !(x.t === "doc" && x.path === op.path);
+    });
     OUT.push(op);
     saveOut(); paintSync(); flush();
   }
@@ -1390,20 +1408,27 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         if (op.qid && seen.indexOf(op.qid) >= 0) return null;   // already counted
         var qi = Object.assign({}, cur.items || {}), qn = Object.assign({}, cur.ings || {}),
             qm = Object.assign({}, cur.mains || {});
+        var ob = op.base || {};
         Object.keys(op.items || {}).forEach(function (id) {
           var it = byId(id);
-          var base = qi[id] == null ? (it ? Number(it.stock) || 0 : 0) - (op.items[id] || 0) : qi[id];
+          var base = qi[id] != null ? qi[id]
+            : ((ob.items && ob.items[id] != null) ? ob.items[id]
+              : (it ? Number(it.stock) || 0 : 0) - (op.items[id] || 0));
           qi[id] = Math.max(0, base + op.items[id]);
         });
         Object.keys(op.mains || {}).forEach(function (id) {
           var mi = byId(id);
-          var mbase = qm[id] == null ? (mi ? Number(mi.main) || 0 : 0) - (op.mains[id] || 0) : qm[id];
+          var mbase = qm[id] != null ? qm[id]
+            : ((ob.mains && ob.mains[id] != null) ? ob.mains[id]
+              : (mi ? Number(mi.main) || 0 : 0) - (op.mains[id] || 0));
           qm[id] = Math.max(0, mbase + op.mains[id]);
         });
         Object.keys(op.ings || {}).forEach(function (id) {
           var g = ingById(id);
-          var base = qn[id] == null ? (g ? Number(g.stock) || 0 : 0) - (op.ings[id] || 0) : qn[id];
-          qn[id] = Math.max(0, Math.round((base + op.ings[id]) * 1000) / 1000);
+          var gbase = qn[id] != null ? qn[id]
+            : ((ob.ings && ob.ings[id] != null) ? ob.ings[id]
+              : (g ? Number(g.stock) || 0 : 0) - (op.ings[id] || 0));
+          qn[id] = Math.max(0, Math.round((gbase + op.ings[id]) * 1000) / 1000);
         });
         if (op.qid) { seen = seen.concat([op.qid]); if (seen.length > 400) seen = seen.slice(-400); }
         return sr.set({ items: qi, ings: qn, mains: qm, seen: seen });
@@ -1482,7 +1507,20 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function queueStock(items, ings, mains) {
     saveLocal();
     if (Object.keys(items || {}).length || Object.keys(ings || {}).length || Object.keys(mains || {}).length) {
-      queue({ t: "stock", items: items || {}, ings: ings || {}, mains: mains || {} });
+      // carry the level this delta started from. Reconstructing it later from
+      // the live figure would subtract only this delta, not the ones queued
+      // behind it, and the server would end up short.
+      var base = { items: {}, ings: {}, mains: {} };
+      Object.keys(items || {}).forEach(function (id) {
+        var it = byId(id); base.items[id] = (it ? Number(it.stock) || 0 : 0) - (items[id] || 0);
+      });
+      Object.keys(mains || {}).forEach(function (id) {
+        var mi = byId(id); base.mains[id] = (mi ? Number(mi.main) || 0 : 0) - (mains[id] || 0);
+      });
+      Object.keys(ings || {}).forEach(function (id) {
+        var g = ingById(id); base.ings[id] = (g ? Number(g.stock) || 0 : 0) - (ings[id] || 0);
+      });
+      queue({ t: "stock", items: items || {}, ings: ings || {}, mains: mains || {}, base: base });
     }
     renderItems(); updateBadges();
     if (S.tab === "stock") renderStock();
@@ -1668,7 +1706,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         if (S.tab === "setup") renderSetup();
       });
     }).catch(function () {
-      DBSTATE = "off"; OUT = []; saveOut();
+      DBSTATE = "off"; saveOut();
       setSync("This device", false);
       if (S.tab === "setup") renderSetup();
     });
@@ -1834,7 +1872,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     r.setAttribute("lang", LANG === "ar" ? "ar" : "en");
     $("langTxt").textContent = LANG === "ar" ? "English" : "عربي";
     Array.prototype.forEach.call(document.querySelectorAll("[data-t]"), function (el) {
-      el.textContent = t(el.dataset.t);
+      // Some labels are keyed by a short name rather than their own sentence.
+      // With no English dictionary, t() hands the key straight back, which used
+      // to print "stockHint" on the screen. Keep the original wording instead.
+      if (el.dataset.en == null) el.dataset.en = el.textContent;
+      var v = t(el.dataset.t);
+      el.textContent = (v === el.dataset.t && el.dataset.en) ? el.dataset.en : v;
     });
     Array.prototype.forEach.call(document.querySelectorAll("[data-tph]"), function (el) {
       el.placeholder = t(el.dataset.tph);
@@ -2233,26 +2276,30 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 
   /* ---- a table is occupied while its check is open, and freed when it is paid ---- */
   var parkT = null;
+  // Writing the held check is its own step so it can also be done at once.
+  // Parking used to rely on the 800 ms debounce and then blanked the ticket
+  // underneath it, so a check parked quickly was never written down at all.
+  function saveTableTicket() {
+    if (!S.table) return;
+    if (!S.cart.length) { releaseTable(); return; }
+    if (!S.editing) S.editing = "p" + uid();
+    var rec = {
+      id: S.editing, table: S.table, type: S.type, note: S.note,
+      customer: S.customer, disc: S.disc, cart: S.cart.slice(),
+      svcOn: S.svcOn, vatOn: S.vatOn,
+      by: S.me ? S.me.name : "", at: new Date().toISOString(),
+      total: totals().total, upd: Date.now(), del: false
+    };
+    S.parked = S.parked.filter(function (p) { return p.id !== rec.id; });
+    S.parked.unshift(rec);
+    queueParked(rec);
+    updateBadges();
+    if (S.tab === "tables") renderTables();
+  }
   function syncTable() {
     if (!S.table) return;
     clearTimeout(parkT);
-    parkT = setTimeout(function () {
-      if (!S.table) return;
-      if (!S.cart.length) { releaseTable(); return; }
-      if (!S.editing) S.editing = "p" + uid();
-      var rec = {
-        id: S.editing, table: S.table, type: S.type, note: S.note,
-        customer: S.customer, disc: S.disc, cart: S.cart,
-        svcOn: S.svcOn, vatOn: S.vatOn,
-        by: S.me ? S.me.name : "", at: new Date().toISOString(),
-        total: totals().total, upd: Date.now(), del: false
-      };
-      S.parked = S.parked.filter(function (p) { return p.id !== rec.id; });
-      S.parked.unshift(rec);
-      queueParked(rec);
-      updateBadges();
-      if (S.tab === "tables") renderTables();
-    }, 800);
+    parkT = setTimeout(saveTableTicket, 800);
   }
   function releaseTable() {
     clearTimeout(parkT);
@@ -2399,7 +2446,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (!S.cart.length) return;
     if (S.table) {                       // already held; just go back to the floor
       clearTimeout(parkT);
-      syncTable(); 
+      saveTableTicket();                 // write it NOW, before the ticket is cleared
       var keep = S.table;
       S.cart = []; S.table = ""; S.note = ""; S.customer = null; S.disc = null; S.editing = null;
       renderTicket(); renderItems(); updateBadges();
@@ -2656,7 +2703,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       cust: S.customer ? { id: S.customer.id, name: S.customer.name, phone: S.customer.phone } : null,
       disc: tt.disc, discInfo: S.disc,
       svcOn: S.svcOn, vatOn: S.vatOn,
-      lines: lines, sub: tt.sub, service: tt.srv, vat: tt.vat, total: tt.total,
+      lines: lines, sub: r2(tt.sub), service: r2(tt.srv), vat: r2(tt.vat), total: r2(tt.total),
+      // the rates this check was actually charged at, so a later edit reprices
+      // on them exactly rather than working them back out of rounded figures
+      svcRate: S.svcOn ? (Number(S.settings.service) || 0) / 100 : 0,
+      vatRate: S.vatOn ? (Number(S.settings.vat) || 0) / 100 : 0,
       currency: cur(), kds: "new", void: false
     };
 
@@ -2887,7 +2938,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         tile(t("Sales") + " " + cur(), money(s.gross), "gold") +
         tile(t("Expenses"), money(xa), xa ? "bad" : "") +
         tile(t("Net income"), money(s.gross - xa), "ok") +
-        tile(t("Expected in drawer"), money(S.shift.float + s.egpIn - xc), "") +
+        tile(t("Expected in drawer"), money(S.shift.float + s.egpIn - xc - shiftPayOut(S.shift.no)), "") +
         (openChecks().length ? tile(t("Open checks"), openChecks().length, "warn") : "") + "</div>" +
         '<div class="panel padded stack"><dl class="kv">' +
           "<dt>" + esc(t("Opened by")) + "</dt><dd>" + esc(S.shift.by) + "</dd>" +
@@ -2898,6 +2949,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           (s.tips ? "<dt>" + esc(t("Extra kept")) + "</dt><dd>" + money(s.tips) + "</dd>" : "") +
           "<dt>" + esc(t("Discounts")) + "</dt><dd>" + money(s.disc) + "</dd>" +
           "<dt>" + esc(t("Cash out")) + "</dt><dd>" + money(xc) + "</dd>" +
+          (shiftPayOut(S.shift.no) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>− " +
+            money(shiftPayOut(S.shift.no)) + "</dd>" : "") +
           fxRows(s.fx).map(function (r) { return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("") +
           "<dt>" + esc(t("Voided")) + "</dt><dd>" + s.voids + "</dd>" +
           (s.refunds ? "<dt>" + esc(t("Refunded")) + "</dt><dd>" + money(s.refunds) + "</dd>" : "") +
@@ -2944,6 +2997,30 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function expDay(e) { return dayKey(new Date(e.ts)); }
   function dayExpenses(k) { return S.expenses.filter(function (e) { return !e.del && expDay(e) === k; }); }
   function shiftExpenses(no) { return S.expenses.filter(function (e) { return !e.del && e.shift === no; }); }
+  /* Cash that leaves the drawer for an order rung up in a previous shift.
+     Within one shift the order's own egpIn already carries it; across a
+     handover it has to be charged to the shift that actually pays it out. */
+  function payOut(amount, why, ref) {
+    amount = r2(amount);
+    if (!amount || !S.shift) return;
+    S.adjust = [{
+      id: "a" + Date.now().toString(36), at: new Date().toISOString(),
+      shift: S.shift.no, amount: amount, why: why || "refund", ref: ref || "",
+      by: S.me ? S.me.name : ""
+    }].concat(S.adjust || []).slice(0, 400);
+    put("state/adjust", { list: S.adjust });
+  }
+  function shiftPayOut(no) {
+    return (S.adjust || []).reduce(function (a, x) {
+      return a + (x.shift === no ? (Number(x.amount) || 0) : 0);
+    }, 0);
+  }
+  function dayPayOut(k) {
+    return (S.adjust || []).reduce(function (a, x) {
+      return a + (dayKey(new Date(x.at)) === k ? (Number(x.amount) || 0) : 0);
+    }, 0);
+  }
+
   function sumExp(list, cashOnly) {
     return list.reduce(function (a, e) { return a + ((cashOnly && e.pay !== "Cash") ? 0 : Number(e.amount) || 0); }, 0);
   }
@@ -3038,7 +3115,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var ocTotal = oc.reduce(function (a, p) { return a + (Number(p.total) || 0); }, 0);
     var xc = sumExp(shiftExpenses(S.shift.no), true);
     var xa = sumExp(shiftExpenses(S.shift.no));
-    var expected = S.shift.float + s.egpIn - xc;
+    var expected = S.shift.float + s.egpIn - xc - shiftPayOut(S.shift.no);
     modal('<div class="padded stack">' +
       '<div class="duebar"><span>' + esc(t("Close shift")) + " " + S.shift.no + '</span><span class="num">' + money(s.gross) + "</span></div>" +
       (oc.length ? '<div class="panel padded" style="border-color:var(--bad);background:var(--bad-dim)">' +
@@ -3055,6 +3132,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         "<dt>" + esc(t("Card sales")) + "</dt><dd>" + money(s.card) + "</dd>" +
         (s.tips ? "<dt>" + esc(t("Extra kept")) + "</dt><dd>" + money(s.tips) + "</dd>" : "") +
         "<dt>" + esc(t("Cash out")) + "</dt><dd>− " + money(xc) + "</dd>" +
+        (shiftPayOut(S.shift.no) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>− " +
+          money(shiftPayOut(S.shift.no)) + "</dd>" : "") +
         fxRows(s.fx).map(function (r) { return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("") +
         "<dt>" + esc(t("Net income")) + "</dt><dd>" + money(s.gross - xa) + "</dd>" +
         "<dt>" + esc(t("Expected in drawer")) + '</dt><dd class="big">' + money(expected) + "</dd></dl>" +
@@ -3076,7 +3155,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
   function finishShift(s, expected, counted, xc, xa) {
     var rec = { no: S.shift.no, by: S.shift.by, openedAt: S.shift.openedAt, float: S.shift.float,
-      cashOut: xc || 0, expenses: xa || 0, tips: s.tips || 0, net: s.gross - (xa || 0), fx: s.fx || {},
+      cashOut: xc || 0, expenses: xa || 0, tips: s.tips || 0, payOut: r2(shiftPayOut(S.shift.no)),
+      net: s.gross - (xa || 0), fx: s.fx || {},
       closedBy: S.me ? S.me.name : "", closedAt: new Date().toISOString(), closedTs: Date.now(),
       n: s.n, gross: s.gross, cash: s.cash, card: s.card, items: s.items, disc: s.disc, voids: s.voids,
       expected: expected, counted: counted, diff: Math.round((counted - expected) * 100) / 100 };
@@ -3101,6 +3181,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="l big"><span>' + esc(t("Net income")) + " " + esc(cur()) + "</span><span>" + money(rec.net) + "</span></div><hr>" +
       '<div class="l"><span>' + esc(t("Opening float")) + "</span><span>" + money(rec.float) + "</span></div>" +
       '<div class="l"><span>' + esc(t("Cash out")) + "</span><span>− " + money(rec.cashOut) + "</span></div>" +
+      (rec.payOut ? '<div class="l"><span>' + esc(t("Paid back out")) + "</span><span>− " + money(rec.payOut) + "</span></div>" : "") +
       fxRows(rec.fx).map(function (r) {
         return '<div class="l"><span>' + esc(r[0]) + "</span><span>" + esc(r[1]) + "</span></div>"; }).join("") +
       '<div class="l"><span>' + esc(t("Expected in drawer")) + "</span><span>" + money(rec.expected) + "</span></div>" +
@@ -3157,7 +3238,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
             '<button type="button" data-ig="' + g.id + '" data-d="-1">−</button>' +
             '<input type="number" step="0.1" value="' + g.stock + '" data-iset="' + g.id + '">' +
             '<button type="button" data-ig="' + g.id + '" data-d="1">+</button>' +
-            '<button type="button" class="btn sm" data-ig="' + g.id + '" data-d="10">+10</button>' +
+            '<button type="button" class="btn sm" data-ig="' + g.id + '" data-d="10" dir="ltr">+10</button>' +
           "</span></td>" +
           '<td><button class="btn sm danger" data-waste="' + g.id + '" type="button">' + esc(t("Waste")) + "</button></td></tr>";
       }).join("");
@@ -3178,7 +3259,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
             '<button type="button" data-ms="' + i.id + '" data-d="-1">−</button>' +
             '<input type="number" min="0" value="' + mn + '" data-mset="' + i.id + '">' +
             '<button type="button" data-ms="' + i.id + '" data-d="1">+</button>' +
-            '<button type="button" class="btn sm" data-ms="' + i.id + '" data-d="12">+12</button>' +
+            '<button type="button" class="btn sm" data-ms="' + i.id + '" data-d="12" dir="ltr">+12</button>' +
           "</span></td>" +
           '<td class="r num" style="font-size:15px">' + (fr + mn) + "</td>" +
           '<td class="r num" style="color:var(--txt-3)">' + (i.low == null ? S.settings.low : i.low) + "</td>" +
@@ -3377,11 +3458,13 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       "</div>" +
       '<div class="acts"><button class="btn primary" id="cntLogNo" type="button">' + esc(t("Done")) + "</button></div>");
     $("cntLogNo").addEventListener("click", closeModal);
-    $("modalMount").addEventListener("click", function (e) {
-      var b = e.target.closest("button[data-cnt]");
-      if (!b) return;
-      var rec = (S.counts || []).filter(function (x) { return x.id === b.dataset.cnt; })[0];
-      if (rec) { closeModal(); countReport(rec); }
+    // bind to the freshly built panel, not to the permanent #modalMount, or the
+    // listeners pile up and one tap fires the report once per time it was opened
+    Array.prototype.forEach.call($("modalMount").querySelectorAll("button[data-cnt]"), function (b) {
+      b.addEventListener("click", function () {
+        var rec = (S.counts || []).filter(function (x) { return x.id === b.dataset.cnt; })[0];
+        if (rec) { closeModal(); countReport(rec); }
+      });
     });
   });
   $("stockScope").addEventListener("change", function (e) { S.stockScope = e.target.value; renderStock(); });
@@ -3471,9 +3554,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     }
     var byCat = {}, byEmp = {}, byHour = {};
     live.forEach(function (o) {
-      byEmp[o.by || "—"] = (byEmp[o.by || "—"] || 0) + o.total;
+      var got = (Number(o.total) || 0) + (Number(o.tip) || 0);
+      byEmp[o.by || "—"] = (byEmp[o.by || "—"] || 0) + got;
       var hr = new Date(o.ts).getHours();
-      byHour[hr] = (byHour[hr] || 0) + o.total;
+      byHour[hr] = (byHour[hr] || 0) + got;
       o.lines.forEach(function (l) {
         var it = byId(l.id);
         var c = it ? it.cat : "—";
@@ -3525,6 +3609,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     }).join("") : '<div class="empty" style="padding:20px 0">' + esc(t("No sales recorded for this day yet.")) + "</div>";
 
     $("orderList").innerHTML = orders.length ? orders.map(function (o) {
+      var oid = o.oid || String(o.no);
       return '<details class="ord' + (o.void ? " void" : "") + '"><summary>' +
         '<span class="no">' + esc(o.ref) + "</span>" +
         '<span class="when">' + esc(o.time) + "</span>" +
@@ -3536,7 +3621,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         '<div class="body">' + o.lines.map(function (l, ix) {
           return '<span class="l"><span dir="auto">' + l.qty + " × " +
             esc(LANG === "ar" && l.ar ? l.ar : l.name) + '</span><span class="num">' + money(l.amount) +
-            (o.void ? "" : ' <button class="lnx" type="button" data-rm="' + o.no + '" data-ix="' + ix +
+            (o.void ? "" : ' <button class="lnx" type="button" data-rm="' + esc(oid) + '" data-ix="' + ix +
               '" aria-label="' + esc(t("Remove item")) + '" title="' + esc(t("Remove item")) + '">✕</button>') +
             "</span></span>";
         }).join("") +
@@ -3551,8 +3636,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         (o.voidBy ? '<span class="l"><span>' + esc(t("Voided by")) + " " + esc(o.voidBy) + "</span><span></span></span>" : "") +
         (o.refund ? '<span class="l"><span>' + esc(t("Refunded")) + " · " + esc(t("Edited by")) + " " +
           esc(o.editedBy || "") + '</span><span class="num">− ' + money(o.refund) + "</span></span>" : "") +
-        '<span class="acts"><button class="btn sm" data-rp="' + o.no + '" type="button">' + esc(t("Reprint")) + "</button>" +
-        (o.void ? "" : '<button class="btn sm danger" data-vo="' + o.no + '" type="button">' + esc(t("Void")) + "</button>") +
+        '<span class="acts"><button class="btn sm" data-rp="' + esc(oid) + '" type="button">' + esc(t("Reprint")) + "</button>" +
+        (o.void ? "" : '<button class="btn sm danger" data-vo="' + esc(oid) + '" type="button">' + esc(t("Void")) + "</button>") +
         "</span></div></details>";
     }).join("") : '<div class="empty">' + esc(t("Nothing rung up on this day.")) + "</div>";
   }
@@ -3561,11 +3646,13 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
      so re-pricing an old order can never apply a VAT that was not on it. */
   function reprice(o) {
     var oldNet = Math.max(0, (Number(o.sub) || 0) - (Number(o.disc) || 0));
-    var srvRate = oldNet > 0 ? (Number(o.service) || 0) / oldNet
-      : (o.svcOn === false ? 0 : (Number(S.settings.service) || 0) / 100);
+    var srvRate = o.svcRate != null ? Number(o.svcRate)
+      : (oldNet > 0 ? (Number(o.service) || 0) / oldNet
+        : (o.svcOn === false ? 0 : (Number(S.settings.service) || 0) / 100));
     var vBase = oldNet + (Number(o.service) || 0);
-    var vatRate = vBase > 0 ? (Number(o.vat) || 0) / vBase
-      : (o.vatOn === false ? 0 : (Number(S.settings.vat) || 0) / 100);
+    var vatRate = o.vatRate != null ? Number(o.vatRate)
+      : (vBase > 0 ? (Number(o.vat) || 0) / vBase
+        : (o.vatOn === false ? 0 : (Number(S.settings.vat) || 0) / 100));
 
     var sub = o.lines.reduce(function (a, l) { return a + (Number(l.amount) || 0); }, 0);
     var d = o.discInfo, disc = 0;
@@ -3617,6 +3704,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     ord.card = Math.max(0, r2((Number(ord.card) || 0) - fromCard));
     ord.egpIn = r2(oldEgpIn - fromCash);
     ord.refund = r2((Number(ord.refund) || 0) + back);
+    if (S.shift && ord.shift !== S.shift.no) payOut(fromCash, "refund", ord.ref);
     ord.editedBy = who.name; ord.editedAt = new Date().toISOString();
     ord.upd = Date.now();
 
@@ -3633,7 +3721,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var list = S.sales[S.salesDay] || [];
     if (rm) {
       e.preventDefault();
-      var ro = list.filter(function (x) { return String(x.no) === rm.dataset.rm; })[0];
+      var ro = list.filter(function (x) { return (x.oid || String(x.no)) === rm.dataset.rm; })[0];
       if (!ro) return;
       var rix = Number(rm.dataset.ix);
       var rl = ro.lines[rix];
@@ -3660,16 +3748,20 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       return;
     }
     if (rp) {
-      var o = list.filter(function (x) { return String(x.no) === rp.dataset.rp; })[0];
+      var o = list.filter(function (x) { return (x.oid || String(x.no)) === rp.dataset.rp; })[0];
       if (o) showReceipt(o, []);
     }
     if (vo) {
-      var ord = list.filter(function (x) { return String(x.no) === vo.dataset.vo; })[0];
+      var ord = list.filter(function (x) { return (x.oid || String(x.no)) === vo.dataset.vo; })[0];
       if (!ord) return;
       askManager(t("Void") + " " + ord.ref + " · " + money(ord.total), function (who) {
         ord.void = true;
         ord.voidBy = who.name;
         ord.voidAt = new Date().toISOString();
+        // the cash for a voided check from an earlier shift leaves the drawer now
+        if (S.shift && ord.shift !== S.shift.no) {
+          payOut(ord.egpIn == null ? (Number(ord.cash) || 0) : Number(ord.egpIn) || 0, "void", ord.ref);
+        }
         var di = {}, dn = {};
         ord.lines.forEach(function (l) {
           var it = byId(l.id);
@@ -4551,10 +4643,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           o.void ? t("Voided") : "",
           LANG === "ar" && l.ar ? l.ar : l.name,
           (l.opts || []).map(function (x) { return LANG === "ar" && x.ar ? x.ar : x.name; }).join(" / "),
-          l.note || "", l.qty, M(r2(l.unit)), M(r2(l.amount)),
-          ix === 0 ? M(r2(o.disc || 0)) : "", ix === 0 ? M(r2(o.service)) : "",
-          ix === 0 ? M(r2(o.vat)) : "", ix === 0 ? M(r2(o.total)) : "",
-          ix === 0 && o.tip ? M(r2(o.tip)) : ""
+          l.note || "", l.qty, M(r2(l.unit)), o.void ? "" : M(r2(l.amount)),
+          ix === 0 && !o.void ? M(r2(o.disc || 0)) : "", ix === 0 && !o.void ? M(r2(o.service)) : "",
+          ix === 0 && !o.void ? M(r2(o.vat)) : "", ix === 0 && !o.void ? M(r2(o.total)) : "",
+          ix === 0 && !o.void && o.tip ? M(r2(o.tip)) : ""
         ]);
       });
     });
@@ -4939,12 +5031,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       window.claude.use("db").then(function (db) {
         if (db) { DB = db; DBSTATE = "on"; return pullFromDb(); }
         if (FBCFG && FBCFG.projectId) return fbStart();
-        DBSTATE = "off"; OUT = []; saveOut(); paintSync();
+        DBSTATE = "off"; saveOut(); paintSync();   // never discard unsent work
       }).catch(function () { paintSync(); });
       return;
     }
     if (FBCFG && FBCFG.projectId) { fbStart(); return; }
-    DBSTATE = "off"; OUT = []; saveOut(); paintSync();
+    DBSTATE = "off"; saveOut(); paintSync();   // never discard unsent work
   })();
 })();
 </script>
