@@ -84,17 +84,26 @@ header.top{border-bottom:1px solid var(--line);background:var(--panel);position:
 .chip.warn{border-color:var(--warn);color:var(--warn)}
 .chip.warn .dot{background:var(--warn)}
 #syncChip{cursor:pointer}
-.ghost{border:1px solid var(--line-2);background:transparent;color:var(--txt-2);border-radius:999px;
-  padding:5px 12px;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase}
-.ghost:hover{color:var(--txt);border-color:var(--gold)}
+.ghost{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line-2);
+  background:var(--raise);color:var(--txt-2);border-radius:10px;
+  padding:7px 13px;font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  transition:background .14s,color .14s,border-color .14s}
+.ghost:hover{color:var(--on-gold);background:var(--gold);border-color:var(--gold)}
+.ghost:active{transform:translateY(1px)}
 
-nav.tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+/* every icon in the chrome is drawn from the same stroke settings, so the
+   whole bar reads as one set of buttons rather than a row of links */
+.ghost svg,nav.tabs svg{width:17px;height:17px;flex:none;fill:none;stroke:currentColor;
+  stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+nav.tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:8px}
 nav.tabs::-webkit-scrollbar{display:none}
-nav.tabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--txt-3);
-  padding:10px 13px 9px;font-size:12.5px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;
-  white-space:nowrap}
-nav.tabs button:hover{color:var(--txt-2)}
-nav.tabs button[aria-selected="true"]{color:var(--gold-lt);border-bottom-color:var(--gold)}
+nav.tabs button{display:inline-flex;align-items:center;gap:8px;background:var(--sunk);
+  border:1px solid var(--line);border-radius:11px;color:var(--txt-2);
+  padding:9px 14px;font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  white-space:nowrap;transition:background .14s,color .14s,border-color .14s}
+nav.tabs button:hover{background:var(--raise);color:var(--txt);border-color:var(--line-2)}
+nav.tabs button[aria-selected="true"]{background:var(--gold);border-color:var(--gold);color:var(--on-gold)}
+nav.tabs button[aria-selected="true"] svg{stroke-width:2}
 nav.tabs .badge{display:inline-block;margin-inline-start:6px;background:var(--bad);color:#fff;
   border-radius:999px;font-size:10px;padding:1px 6px;font-family:var(--mono);vertical-align:1px}
 nav.tabs .badge.info{background:var(--info)}
@@ -108,14 +117,16 @@ main{padding-block:18px 40px}
 .hint{font-size:12.5px;color:var(--txt-3)}
 .bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .bar .grow{flex:1}
-.btn{border:1px solid var(--line-2);background:var(--raise);color:var(--txt);border-radius:9px;
-  padding:8px 14px;font-size:13px;font-weight:600;letter-spacing:.04em}
+.btn{border:1px solid var(--line-2);background:var(--raise);color:var(--txt);border-radius:10px;
+  padding:10px 17px;font-size:13.5px;font-weight:700;letter-spacing:.03em;
+  transition:background .14s,color .14s,border-color .14s,transform .06s}
 .btn:hover{border-color:var(--gold);color:var(--gold-lt)}
+.btn:active{transform:translateY(1px)}
 .btn.primary{background:var(--gold);border-color:var(--gold);color:var(--on-gold)}
 .btn.primary:hover{background:var(--gold-lt);color:var(--on-gold)}
-.btn.danger{color:var(--bad)}
+.btn.danger{color:var(--bad);border-color:rgba(200,87,63,.5)}
 .btn.danger:hover{border-color:var(--bad);color:var(--bad)}
-.btn.sm{padding:5px 10px;font-size:12px}
+.btn.sm{padding:7px 12px;font-size:12.5px}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .fld{display:flex;flex-direction:column;gap:4px}
 .fld label{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt-3)}
@@ -126,8 +137,9 @@ main{padding-block:18px 40px}
 /* ---------- order ---------- */
 .order-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start}
 .cats{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
-.cats button{border:1px solid var(--line);background:var(--panel);color:var(--txt-2);border-radius:999px;
-  padding:6px 13px;font-size:12.5px;font-weight:500}
+.cats button{border:1px solid var(--line);background:var(--raise);color:var(--txt-2);border-radius:9px;
+  padding:7px 12px;font-size:12px;font-weight:600;transition:background .14s,color .14s,border-color .14s}
+.cats button:hover{background:var(--panel);color:var(--txt);border-color:var(--line-2)}
 .cats button[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:var(--on-gold);font-weight:600}
 .search{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
   padding:10px 13px;margin-bottom:12px}
@@ -164,13 +176,15 @@ main{padding-block:18px 40px}
 .t-head .caret{display:none}
 .t-meta{display:grid;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
 .seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
-.seg button{flex:1;background:transparent;border:0;padding:7px 4px;font-size:12px;font-weight:600;
-  letter-spacing:.06em;text-transform:uppercase;color:var(--txt-3)}
+.seg button{flex:1;background:var(--raise);border:0;padding:9px 4px;font-size:12px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--txt-2);transition:background .14s,color .14s}
 .seg button[aria-pressed="true"]{background:var(--gold-dim);color:var(--gold-lt)}
 .t-tools{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .t-tools button{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  border:1px solid var(--line);background:var(--sunk);color:var(--txt-2);
-  border-radius:8px;padding:7px 3px;font-size:12px;font-weight:600}
+  border:1px solid var(--line);background:var(--raise);color:var(--txt-2);
+  border-radius:9px;padding:8px 3px;font-size:12px;font-weight:700;
+  transition:background .14s,color .14s,border-color .14s}
+.t-tools button:active{transform:translateY(1px)}
 .t-tools button:hover{border-color:var(--gold);color:var(--gold-lt)}
 .t-tools button.off{color:var(--bad);border-color:var(--bad);background:var(--bad-dim)}
 .t-meta .hint:empty{display:none}
@@ -413,6 +427,9 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   .t-act{padding:8px 14px;gap:4px}
   .send{padding:11px;font-size:13px}
   .clear{font-size:11px}
+  .cats{gap:5px;margin-bottom:8px}
+  .cats button{padding:6px 11px;font-size:11.5px}
+  .search{padding:8px 12px;margin-bottom:9px}
   .t-lines{min-height:128px}
 }
 @media (max-width:920px){
@@ -464,19 +481,19 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           <span class="chip on" id="userChip" hidden><span class="dot"></span><span id="userTxt"></span></span>
           <span class="chip" id="shiftChip" hidden><span class="dot"></span><span id="shiftTxt"></span></span>
           <span class="chip" id="syncChip"><span class="dot"></span><span id="syncTxt">Starting</span></span>
-          <button class="ghost" id="themeBtn" type="button" data-t="Theme">Theme</button>
-          <button class="ghost" id="langBtn" type="button">عربي</button>
-          <button class="ghost" id="lockBtn" type="button" data-t="Lock">Lock</button>
+          <button class="ghost" id="themeBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2m9-9h-2M5 12H3m14.7-6.7-1.4 1.4M7.7 16.3l-1.4 1.4m12.4 0-1.4-1.4M7.7 7.7 6.3 6.3"/><circle cx="12" cy="12" r="4"/></svg><span data-t="Theme">Theme</span></button>
+          <button class="ghost" id="langBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18"/></svg><span id="langTxt">عربي</span></button>
+          <button class="ghost" id="lockBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span data-t="Lock">Lock</span></button>
         </div>
       </div>
       <nav class="tabs" role="tablist">
-        <button role="tab" id="tab-order"   aria-selected="true"  data-tab="order" data-t="Order">Order</button>
-        <button role="tab" id="tab-tables"  aria-selected="false" data-tab="tables"><span data-t="Tables">Tables</span><span class="badge info" id="tablesBadge" hidden>0</span></button>
-        <button role="tab" id="tab-kitchen" aria-selected="false" data-tab="kitchen"><span data-t="Kitchen">Kitchen</span><span class="badge" id="kdsBadge" hidden>0</span></button>
-        <button role="tab" id="tab-shift"   aria-selected="false" data-tab="shift" data-t="Shift">Shift</button>
-        <button role="tab" id="tab-stock"   aria-selected="false" data-tab="stock"><span data-t="Stock">Stock</span><span class="badge" id="stockBadge" hidden>0</span></button>
-        <button role="tab" id="tab-sales"   aria-selected="false" data-tab="sales" data-t="Sales">Sales</button>
-        <button role="tab" id="tab-setup"   aria-selected="false" data-tab="setup" data-t="Setup">Setup</button>
+        <button role="tab" id="tab-order"   aria-selected="true"  data-tab="order"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg><span data-t="Order">Order</span></button>
+        <button role="tab" id="tab-tables"  aria-selected="false" data-tab="tables"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg><span data-t="Tables">Tables</span><span class="badge info" id="tablesBadge" hidden>0</span></button>
+        <button role="tab" id="tab-kitchen" aria-selected="false" data-tab="kitchen" hidden><span data-t="Kitchen">Kitchen</span><span class="badge" id="kdsBadge" hidden>0</span></button>
+        <button role="tab" id="tab-shift"   aria-selected="false" data-tab="shift"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg><span data-t="Shift">Shift</span></button>
+        <button role="tab" id="tab-stock"   aria-selected="false" data-tab="stock"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5 12 4l9 4.5v7L12 20l-9-4.5z"/><path d="M3 8.5 12 13l9-4.5M12 13v7"/></svg><span data-t="Stock">Stock</span><span class="badge" id="stockBadge" hidden>0</span></button>
+        <button role="tab" id="tab-sales"   aria-selected="false" data-tab="sales"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span data-t="Sales">Sales</span></button>
+        <button role="tab" id="tab-setup"   aria-selected="false" data-tab="setup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h8M19 6h1M4 12h3M14 12h6M4 18h8M19 18h1"/><circle cx="15" cy="6" r="2.2"/><circle cx="10" cy="12" r="2.2"/><circle cx="15" cy="18" r="2.2"/></svg><span data-t="Setup">Setup</span></button>
       </nav>
     </div>
   </header>
@@ -1741,7 +1758,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var r = document.documentElement;
     r.setAttribute("dir", LANG === "ar" ? "rtl" : "ltr");
     r.setAttribute("lang", LANG === "ar" ? "ar" : "en");
-    $("langBtn").textContent = LANG === "ar" ? "English" : "عربي";
+    $("langTxt").textContent = LANG === "ar" ? "English" : "عربي";
     Array.prototype.forEach.call(document.querySelectorAll("[data-t]"), function (el) {
       el.textContent = t(el.dataset.t);
     });
@@ -1769,7 +1786,9 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function isMgr() { return !!S.me && S.me.role === "manager"; }
 
   function applyRole() {
-    TABS.forEach(function (x) { $("tab-" + x).hidden = !can(x); });
+    // "kitchen" stays in TABS so nothing that references it breaks, but the
+    // screen is retired and its tab never shows
+    TABS.forEach(function (x) { $("tab-" + x).hidden = (x === "kitchen") || !can(x); });
     $("userChip").hidden = !S.me;
     if (S.me) $("userTxt").textContent = S.me.name + " · " + roleLabel(S.me.role);
     if (!can(S.tab)) setTab("order");
@@ -1783,6 +1802,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     $("shiftTxt").textContent = S.shift ? t("Shift") + " " + S.shift.no + " " + t("open") : t("No shift");
   }
   function setTab(name) {
+    if (name === "kitchen") name = "order";    // the kitchen screen is retired
     if (!can(name)) name = "order";
     S.tab = name;
     TABS.forEach(function (x) {
