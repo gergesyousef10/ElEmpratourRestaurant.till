@@ -179,8 +179,12 @@ main{padding-block:18px 40px}
 .seg button{flex:1;background:var(--raise);border:0;padding:9px 4px;font-size:12px;font-weight:700;
   letter-spacing:.06em;text-transform:uppercase;color:var(--txt-2);transition:background .14s,color .14s}
 .seg button[aria-pressed="true"]{background:var(--gold-dim);color:var(--gold-lt)}
-.t-tools{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+/* Four across is right for the ticket's short labels; anywhere else the
+   buttons size to their own text instead of being squeezed into quarters. */
+.t-tools{display:flex;flex-wrap:wrap;gap:6px}
+.t-meta .t-tools{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
 .t-tools button{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  flex:1 1 auto;padding-inline:14px;
   border:1px solid var(--line);background:var(--raise);color:var(--txt-2);
   border-radius:9px;padding:8px 3px;font-size:12px;font-weight:700;
   transition:background .14s,color .14s,border-color .14s}
@@ -289,6 +293,13 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 .ord summary .tt{margin-inline-start:auto;font-family:var(--mono);font-size:14px}
 .ord.void summary{opacity:.55;text-decoration:line-through}
 .ord .l.gone{opacity:.55;text-decoration:line-through}
+.warnbox{border-color:var(--warn);background:var(--warn-dim)}
+.cnt-in{width:88px;background:var(--sunk);border:1px solid var(--line-2);border-radius:8px;
+  padding:8px 10px;font-family:var(--mono);font-size:15px;text-align:center;color:var(--txt)}
+.cnt-in:focus{border-color:var(--gold);outline:none}
+.warnbox .l{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;
+  border-bottom:1px solid var(--line)}
+.warnbox .l:last-of-type{border-bottom:0}
 .lnx{margin-inline-start:8px;width:26px;height:26px;border-radius:7px;border:1px solid var(--line-2);
   background:var(--raise);color:var(--txt-3);font-size:13px;line-height:1;padding:0;vertical-align:middle}
 .lnx:hover{border-color:var(--bad);color:var(--bad);background:var(--bad-dim)}
@@ -418,8 +429,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   .t-head .ttl{font-size:15px}
   .t-meta{padding:8px 12px;gap:6px}
   .seg button{padding:6px 4px}
-  .t-tools{gap:5px}
-  .t-tools button{padding:6px 3px;font-size:11.5px}
+  .t-meta .t-tools{gap:5px}
+  .t-meta .t-tools button{padding:6px 3px;font-size:11.5px}
   .t-sum{padding:8px 14px;gap:2px}
   .row{font-size:12.5px}
   .row.total{margin-top:3px;padding-top:6px;font-size:18px}
@@ -584,6 +595,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       <div class="tiles" id="stockTiles"></div>
       <div class="bar">
         <h2 class="sec-title grow" data-t="Storage">Storage</h2>
+        <button class="btn" id="cntStart" type="button" data-t="Stocktake">Stocktake</button>
+        <button class="btn" id="cntLog" type="button" data-t="History">History</button>
         <select class="btn" id="stockScope">
           <option value="items" data-t="Sold items">Sold items</option>
           <option value="ing" data-t="Ingredients">Ingredients</option>
@@ -593,14 +606,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           <option value="low" data-t="Low &amp; out only">Low &amp; out only</option>
         </select>
       </div>
+      <div id="moveWarn"></div>
       <div class="panel tablewrap">
         <table>
-          <thead><tr>
-            <th class="stripe"></th>
-            <th data-t="Item">Item</th><th data-t="Category">Category</th>
-            <th class="r" data-t="In stock">In stock</th><th class="r" data-t="Low at">Low at</th>
-            <th data-t="Restock">Restock</th><th></th>
-          </tr></thead>
+          <thead><tr id="stockHead"></tr></thead>
           <tbody id="stockRows"></tbody>
         </table>
       </div>
@@ -642,6 +651,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         <p class="eyebrow" style="padding:14px 14px 0;margin-bottom:0" data-t="Charges &amp; rules">Charges &amp; rules</p>
         <div class="grid2 padded">
           <div class="fld"><label for="setCur" data-t="Currency">Currency</label><input id="setCur"></div>
+          <div class="fld"><label for="setTax" data-t="Tax reg. no.">Tax reg. no.</label><input id="setTax" inputmode="numeric"></div>
           <div class="fld"><label for="setSrv" data-t="Service %">Service %</label><input id="setSrv" type="number" min="0" step="0.5"></div>
           <div class="fld"><label for="setVat" data-t="VAT %">VAT %</label><input id="setVat" type="number" min="0" step="0.5"></div>
           <div class="fld"><label for="setLow" data-t="Default low-stock level">Default low-stock level</label><input id="setLow" type="number" min="0" step="1"></div>
@@ -818,6 +828,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     "Cash received":"المبلغ المستلم","Card amount":"مبلغ الفيزا","Exact":"بالظبط","Change":"الباقي",
     "Extra":"زيادة","Extra kept":"زيادة محصّلة","Give as change":"يرجع باقي","Keep the extra":"تتحسب زيادة",
     "Remove item":"حذف صنف","Remove":"حذف","How many to remove?":"تحذف كام؟","Item removed":"تم حذف الصنف",
+    "Fridge":"الثلاجة","Main store":"المخزن الرئيسي","Total stock":"إجمالي المخزن","Transfer":"تحويل",
+    "Transfer to fridge":"تحويل للثلاجة","How much to move?":"تنقل كام؟","Moved to the fridge":"اتحول للثلاجة",
+    "Needs moving from the main store":"محتاج تحويل من المخزن الرئيسي","Stock total":"الإجمالي",
+    "Send the day":"ابعت اليوم","Your email":"إيميلك","Tax reg. no.":"س.ت. ضريبي",
+    "Stocktake":"جرد","History":"السجل","Save the count":"حفظ الجرد","Counted":"المعدود","Units":"وحدات","Items short":"أصناف ناقصة",
+    "Value at selling price":"القيمة بسعر البيع","Items with a difference":"أصناف فيها فرق","Everything matched.":"كل حاجة مطابقة.","Nothing counted yet.":"لسه ما عدّيتش حاجة.",
+    "No stocktake yet.":"مفيش جرد لسه.","Last stocktake":"آخر جرد","Type what is really there. Leave a box empty to skip that item.":"اكتب اللي موجود فعلاً. سيب الخانة فاضية لو مش عايز تعدّ الصنف ده.","Today's copy":"نسخة النهارده","Sent":"اتبعت","Not sent yet":"لسه ما اتبعتش",
+    "The Excel report and the rescue file are attached.":"مرفق ملف الإكسل و ملف الإنقاذ.","Attach the two files from the Downloads folder.":"ارفق الملفين من مجلد التنزيلات.",
     "Refund":"مرتجع","Refunded":"مرتجع","Edited":"معدّلة","Edited by":"عدّلها",
     "Back":"رجوع","Cancel":"إلغاء","Save":"حفظ","Charge":"تحصيل","Apply":"تطبيق","Add":"إضافة",
     "Cashier":"كاشير","Supervisor":"مشرف","Manager":"مدير",
@@ -1171,14 +1189,15 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     counter: 1,
     menu: [], groups: [], ings: [], tables: [], customers: [], expenses: [],
     sales: {}, staff: [], shifts: [], clock: [],
-    parked: [],
+    parked: [], counts: [],
     me: null, shift: null,
     cart: [],                 // [{uid,id,qty,opts:[{name,ar,price}],note,disc}]
     type: "Dine-in", table: "", customer: null, note: "", disc: null,
     svcOn: true, vatOn: true,
     editing: null,            // parked ticket id being edited
     tab: "order", cat: "All", q: "", setupQ: "",
-    stockScope: "items", stockFilter: "all", salesDay: null, kdsFilter: "live"
+    stockScope: "items", stockFilter: "all", salesDay: null, kdsFilter: "live",
+    counting: null            // the count sheet in progress: { id: typed quantity }
   };
   var DB = null, lastTouch = Date.now(), liveOff = null;
 
@@ -1247,18 +1266,29 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function snapshot() {
     return { settings: S.settings, counter: S.counter, menu: S.menu, groups: S.groups, ings: S.ings,
       tables: S.tables, customers: S.customers, expenses: S.expenses, sales: S.sales, staff: S.staff,
-      shift: S.shift, shifts: S.shifts, clock: S.clock, parked: S.parked };
+      shift: S.shift, shifts: S.shifts, clock: S.clock, parked: S.parked, counts: S.counts };
   }
   function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(snapshot())); } catch (e) {} }
   function loadLocal() {
     try { var r = localStorage.getItem(LS_KEY); return r ? JSON.parse(r) : null; } catch (e) { return null; }
+  }
+  // Everything counted before the split was warehouse stock, so it moves to the
+  // main store and the fridge starts empty. Runs once, then the flag stops it.
+  function splitStockOnce() {
+    if (S.settings.splitStock) return;
+    S.menu.forEach(function (i) {
+      if (!i.track) { i.main = 0; return; }
+      i.main = (Number(i.main) || 0) + (Number(i.stock) || 0);
+      i.stock = 0;
+    });
+    S.settings.splitStock = 1;
   }
   function adopt(d) {
     if (!d) return;
     if (d.settings) S.settings = Object.assign({}, DEFAULT_SETTINGS, d.settings);
     S.settings.fx = Object.assign({ USD: 0, EUR: 0, GBP: 0 }, S.settings.fx || {});
     if (typeof d.counter === "number") S.counter = d.counter;
-    ["menu", "groups", "ings", "tables", "customers", "expenses", "staff", "shifts", "clock", "parked"].forEach(function (k) {
+    ["menu", "groups", "ings", "tables", "customers", "expenses", "staff", "shifts", "clock", "parked", "counts"].forEach(function (k) {
       if (Array.isArray(d[k])) S[k] = d[k];
     });
     if (d.sales && typeof d.sales === "object") S.sales = d.sales;
@@ -1271,8 +1301,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     });
   }
   function stockMap() {
-    var m = { items: {}, ings: {} };
-    S.menu.forEach(function (i) { if (i.track) m.items[i.id] = Number(i.stock) || 0; });
+    var m = { items: {}, ings: {}, mains: {} };
+    S.menu.forEach(function (i) {
+      if (!i.track) return;
+      m.items[i.id] = Number(i.stock) || 0;       // the fridge
+      m.mains[i.id] = Number(i.main) || 0;        // the main store
+    });
     S.ings.forEach(function (g) { m.ings[g.id] = Number(g.stock) || 0; });
     return m;
   }
@@ -1347,11 +1381,17 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         var cur = (s.exists && s.data()) ? s.data() : {};
         var seen = Array.isArray(cur.seen) ? cur.seen : [];
         if (op.qid && seen.indexOf(op.qid) >= 0) return null;   // already counted
-        var qi = Object.assign({}, cur.items || {}), qn = Object.assign({}, cur.ings || {});
+        var qi = Object.assign({}, cur.items || {}), qn = Object.assign({}, cur.ings || {}),
+            qm = Object.assign({}, cur.mains || {});
         Object.keys(op.items || {}).forEach(function (id) {
           var it = byId(id);
           var base = qi[id] == null ? (it ? Number(it.stock) || 0 : 0) - (op.items[id] || 0) : qi[id];
           qi[id] = Math.max(0, base + op.items[id]);
+        });
+        Object.keys(op.mains || {}).forEach(function (id) {
+          var mi = byId(id);
+          var mbase = qm[id] == null ? (mi ? Number(mi.main) || 0 : 0) - (op.mains[id] || 0) : qm[id];
+          qm[id] = Math.max(0, mbase + op.mains[id]);
         });
         Object.keys(op.ings || {}).forEach(function (id) {
           var g = ingById(id);
@@ -1359,7 +1399,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           qn[id] = Math.max(0, Math.round((base + op.ings[id]) * 1000) / 1000);
         });
         if (op.qid) { seen = seen.concat([op.qid]); if (seen.length > 400) seen = seen.slice(-400); }
-        return sr.set({ items: qi, ings: qn, seen: seen });
+        return sr.set({ items: qi, ings: qn, mains: qm, seen: seen });
       });
     }
     if (op.t === "parked") {
@@ -1432,10 +1472,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function saveStaff() { put("state/staff", { list: S.staff }); }
   function saveTableList() { saveLocal(); queue({ t: "doc", path: "state/tables", data: { list: S.tables, parked: livingParked(S.parked) } }); }
 
-  function queueStock(items, ings) {
+  function queueStock(items, ings, mains) {
     saveLocal();
-    if (Object.keys(items || {}).length || Object.keys(ings || {}).length) {
-      queue({ t: "stock", items: items || {}, ings: ings || {} });
+    if (Object.keys(items || {}).length || Object.keys(ings || {}).length || Object.keys(mains || {}).length) {
+      queue({ t: "stock", items: items || {}, ings: ings || {}, mains: mains || {} });
     }
     renderItems(); updateBadges();
     if (S.tab === "stock") renderStock();
@@ -1455,6 +1495,32 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       g.stock = gv;
       queueStock({}, gd ? (function () { var o = {}; o[id] = gd; return o; })() : {});
     }
+  }
+  // the main store: changed only when goods come in or move to the fridge
+  function mainSet(id, value) {
+    var it = byId(id);
+    if (!it) return;
+    var v = Math.max(0, Math.round(Number(value) || 0)), d = v - (Number(it.main) || 0);
+    it.main = v;
+    queueStock({}, {}, d ? (function () { var o = {}; o[id] = d; return o; })() : {});
+  }
+  // moving stock is one action, not two edits: the total must never wobble
+  function moveToFridge(id, qty) {
+    var it = byId(id);
+    if (!it) return 0;
+    var q = Math.max(0, Math.min(Number(it.main) || 0, Math.round(Number(qty) || 0)));
+    if (!q) return 0;
+    it.main = (Number(it.main) || 0) - q;
+    it.stock = (Number(it.stock) || 0) + q;
+    var mi = {}, mm = {};
+    mi[id] = q; mm[id] = -q;
+    queueStock(mi, {}, mm);
+    return q;
+  }
+  function needsMove() {
+    return S.menu.filter(function (i) {
+      return i.track && (Number(i.main) || 0) > 0 && stockState(i) !== "ok";
+    });
   }
   function queueOrder(order, day) { saveLocal(); queue({ t: "order", day: day, order: order }); }
   function queueParked(rec) { saveLocal(); queue({ t: "parked", rec: rec }); }
@@ -1662,6 +1728,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       if (stockDoc.exists) {
         var sd = stockDoc.data();
         if (sd.items) S.menu.forEach(function (i) { if (sd.items[i.id] != null) i.stock = sd.items[i.id]; });
+        if (sd.mains) S.menu.forEach(function (i) { if (sd.mains[i.id] != null) i.main = sd.mains[i.id]; });
         if (sd.ings) S.ings.forEach(function (g) { if (sd.ings[g.id] != null) g.stock = sd.ings[g.id]; });
       } else put("state/stock", stockMap());
 
@@ -1923,7 +1990,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     }
     $("items").innerHTML = list.map(function (i) {
       var st = stockState(i);
-      var label = st === "out" ? t("Sold out") : i.stock + " " + t("left");
+      var mn = Number(i.main) || 0;
+      var label = st === "out"
+        ? (mn > 0 ? t("Sold out") + " · " + t("Main store") + " " + mn : t("Sold out"))
+        : i.stock + " " + t("left");
       var blocked = i.track && i.stock - inCart(i.id) <= 0;
       return '<button class="item" type="button" data-add="' + i.id + '"' + (blocked ? " disabled" : "") + ">" +
         '<span class="nm" dir="auto">' + esc(nm(i)) + "</span>" +
@@ -2606,6 +2676,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
 
   /* ============ receipt ============ */
+  // a VAT-registered business has to show its registration on the invoice
+  function taxLine() {
+    var no = (S.settings.taxNo || "").trim();
+    return no ? '<div class="s">' + esc(t("Tax reg. no.")) + " " + esc(no) + "</div>" : "";
+  }
   function receiptBody(o) {
     return '<div class="l"><span>' + esc(o.ref) + "</span><span>" + esc(o.time) + "</span></div>" +
       '<div class="l"><span>' + esc(t(o.type)) + (o.table ? " · " + esc(o.table) : "") + "</span>" +
@@ -2636,11 +2711,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
   function receiptHTML(o) {
     return '<div class="rh"><div class="n">El Empratour</div><div class="s">' +
-      esc(t("Restaurant & Bar · Sherry St, Sekala")) + "</div></div>" + receiptBody(o);
+      esc(t("Restaurant & Bar · Sherry St, Sekala")) + "</div>" + taxLine() + "</div>" + receiptBody(o);
   }
   function fillPrint(o) {
     $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' +
-      esc(t("Restaurant & Bar · Sherry St, Sekala")) + "</div><hr>" + receiptBody(o) +
+      esc(t("Restaurant & Bar · Sherry St, Sekala")) + "</div>" + taxLine() + "<hr>" + receiptBody(o) +
       '<hr><div class="c">' + esc(t("Thank you — see you again")) + "</div>";
   }
   function showReceipt(o, ran, backToTables) {
@@ -3007,30 +3082,37 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     modal('<div class="rcpt"><div class="rh"><div class="n">' + esc(t("Shift report")) + "</div>" +
       '<div class="s">El Empratour · ' + esc(t("Shift")) + " " + rec.no + "</div></div>" + body + "</div>" +
       '<div class="acts"><button class="btn" id="prShift" type="button">' + esc(t("Print")) + "</button>" +
+      '<button class="btn" id="mailShift" type="button">' + esc(t("Send the day")) + "</button>" +
       '<button class="btn primary" id="okShift" type="button">' + esc(t("Done")) + "</button></div>");
     $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' + esc(t("Shift report")) +
       " " + rec.no + "</div><hr>" + body;
     $("prShift").addEventListener("click", function () { window.print(); });
+    $("mailShift").addEventListener("click", function () { sendDay(dayKey(new Date(rec.closedAt))); });
     $("okShift").addEventListener("click", closeModal);
     if (S.settings.autoXls !== false) saveDayAuto(dayKey(new Date(rec.closedAt)));
   }
 
   /* ============ stock ============ */
   function renderStock() {
+    if (S.counting) { renderCountSheet(); return; }
     var tracked = S.menu.filter(function (i) { return i.track; });
     var lowI = tracked.filter(function (i) { return stockState(i) === "low"; }).length;
     var outI = tracked.filter(function (i) { return stockState(i) === "out"; }).length;
     var lowN = S.ings.filter(function (g) { return ingState(g) === "low"; }).length;
     var outN = S.ings.filter(function (g) { return ingState(g) === "out"; }).length;
     var units = tracked.reduce(function (a, i) { return a + (Number(i.stock) || 0); }, 0);
+    var mains = tracked.reduce(function (a, i) { return a + (Number(i.main) || 0); }, 0);
     var value = S.ings.reduce(function (a, g) { return a + (Number(g.stock) || 0) * (Number(g.cost) || 0); }, 0);
 
     $("stockTiles").innerHTML =
       tile(t("Tracked items"), tracked.length, "") +
-      tile(t("Units in storage"), units.toLocaleString("en-GB"), "gold") +
+      tile(t("Fridge"), units.toLocaleString("en-GB"), "") +
+      tile(t("Main store"), mains.toLocaleString("en-GB"), "") +
+      tile(t("Total stock"), (units + mains).toLocaleString("en-GB"), "gold") +
       tile(t("Ingredients") + " " + cur(), money(value), "gold") +
       tile(t("Running low"), lowI + lowN, (lowI + lowN) ? "warn" : "") +
-      tile(t("Sold out"), outI + outN, (outI + outN) ? "bad" : "");
+      tile(t("Sold out"), outI + outN, (outI + outN) ? "bad" : "") +
+      (lastCount() ? tile(t("Last stocktake"), lastCountLabel(), (lastCount().value < 0 ? "bad" : "")) : "");
 
     var rows;
     if (S.stockScope === "ing") {
@@ -3053,28 +3135,235 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     } else {
       rows = tracked.filter(function (i) { return S.stockFilter === "all" || stockState(i) !== "ok"; }).map(function (i) {
         var st = stockState(i);
+        var mn = Number(i.main) || 0, fr = Number(i.stock) || 0;
         return "<tr>" + '<td class="stripe ' + st + '"></td>' +
           '<td><strong dir="auto">' + esc(nm(i)) + "</strong>" +
-          (nm2(i) ? '<span class="ar" dir="auto">' + esc(nm2(i)) + "</span>" : "") + "</td>" +
-          '<td style="color:var(--txt-3)">' + esc(t(i.cat)) + "</td>" +
-          '<td class="r num" style="font-size:15px">' + i.stock + "</td>" +
-          '<td class="r num" style="color:var(--txt-3)">' + (i.low == null ? S.settings.low : i.low) + "</td>" +
+          (nm2(i) ? '<span class="ar" dir="auto">' + esc(nm2(i)) + "</span>" : "") +
+          '<span class="ar" dir="auto">' + esc(t(i.cat)) + "</span></td>" +
           '<td><span class="stepper">' +
             '<button type="button" data-s="' + i.id + '" data-d="-1">−</button>' +
-            '<input type="number" min="0" value="' + i.stock + '" data-set="' + i.id + '">' +
+            '<input type="number" min="0" value="' + fr + '" data-set="' + i.id + '">' +
             '<button type="button" data-s="' + i.id + '" data-d="1">+</button>' +
-            '<button type="button" class="btn sm" data-s="' + i.id + '" data-d="12">+12</button>' +
-          "</span></td><td></td></tr>";
+          "</span></td>" +
+          '<td><span class="stepper">' +
+            '<button type="button" data-ms="' + i.id + '" data-d="-1">−</button>' +
+            '<input type="number" min="0" value="' + mn + '" data-mset="' + i.id + '">' +
+            '<button type="button" data-ms="' + i.id + '" data-d="1">+</button>' +
+            '<button type="button" class="btn sm" data-ms="' + i.id + '" data-d="12">+12</button>' +
+          "</span></td>" +
+          '<td class="r num" style="font-size:15px">' + (fr + mn) + "</td>" +
+          '<td class="r num" style="color:var(--txt-3)">' + (i.low == null ? S.settings.low : i.low) + "</td>" +
+          '<td>' + (mn > 0 ? '<button class="btn sm' + (st === "ok" ? "" : " primary") + '" data-move="' + i.id +
+            '" type="button">' + esc(t("Transfer")) + "</button>" : "") + "</td></tr>";
       }).join("");
     }
+    $("stockHead").innerHTML = '<th class="stripe"></th>' + (S.stockScope === "ing"
+      ? '<th>' + esc(t("Item")) + '</th><th>' + esc(t("Unit")) + '</th>' +
+        '<th class="r">' + esc(t("In stock")) + '</th><th class="r">' + esc(t("Low at")) + '</th>' +
+        '<th>' + esc(t("Restock")) + "</th><th></th>"
+      : '<th>' + esc(t("Item")) + '</th><th>' + esc(t("Fridge")) + '</th><th>' + esc(t("Main store")) + '</th>' +
+        '<th class="r">' + esc(t("Stock total")) + '</th><th class="r">' + esc(t("Low at")) + "</th><th></th>");
+
+    var pend = S.stockScope === "ing" ? [] : needsMove();
+    $("moveWarn").innerHTML = pend.length
+      ? '<div class="panel padded warnbox" style="margin-bottom:14px">' +
+          '<p class="eyebrow" style="margin:0 0 8px;color:var(--warn)">' +
+          esc(t("Needs moving from the main store")) + "</p>" +
+          pend.slice(0, 5).map(function (i) {
+            return '<div class="l"><span dir="auto">' + esc(nm(i)) + " · " + esc(t("Fridge")) + " " +
+              (Number(i.stock) || 0) + " · " + esc(t("Main store")) + " " + (Number(i.main) || 0) + "</span>" +
+              '<button class="btn sm primary" data-move="' + i.id + '" type="button">' + esc(t("Transfer")) + "</button></div>";
+          }).join("") +
+          (pend.length > 5 ? '<p class="hint" style="margin:8px 0 0">+ ' + (pend.length - 5) + "</p>" : "") +
+        "</div>"
+      : "";
+
     $("stockRows").innerHTML = rows || '<tr><td colspan="7" class="empty">' + esc(t("Everything is well stocked.")) + "</td></tr>";
     updateBadges();
   }
+
+  /* ---- stocktake: what the till says you should have, against what is
+     actually on the shelf. The gap is the number that matters in a bar. ---- */
+  function countStart() {
+    S.counting = { f: {}, m: {} };          // typed counts, per store, by item id
+    renderStock();
+  }
+  function countCancel() { S.counting = null; renderStock(); }
+
+  function countLines() {
+    var c = S.counting || { f: {}, m: {} };
+    return S.menu.filter(function (i) { return i.track; }).map(function (i) {
+      var ef = Number(i.stock) || 0, em = Number(i.main) || 0;
+      var cf = c.f[i.id] === "" || c.f[i.id] == null ? null : Math.max(0, Math.round(Number(c.f[i.id]) || 0));
+      var cm = c.m[i.id] === "" || c.m[i.id] == null ? null : Math.max(0, Math.round(Number(c.m[i.id]) || 0));
+      var df = cf == null ? 0 : cf - ef;
+      var dm = cm == null ? 0 : cm - em;
+      return { id: i.id, name: i.name, ar: i.ar || "", price: Number(i.price) || 0,
+        ef: ef, em: em, cf: cf, cm: cm, diff: df + dm, done: cf != null || cm != null };
+    });
+  }
+  function countTotals(lines) {
+    var done = 0, units = 0, value = 0, short = 0;
+    lines.forEach(function (l) {
+      if (!l.done) return;
+      done += 1; units += l.diff; value += l.diff * l.price;
+      if (l.diff < 0) short += 1;
+    });
+    return { done: done, units: units, value: value, short: short };
+  }
+
+  function countSave() {
+    var lines = countLines().filter(function (l) { return l.done; });
+    if (!lines.length) { toast(t("Nothing counted yet."), true); return; }
+    var tt = countTotals(lines);
+    askManager(t("Save the count") + " · " + lines.length + " · " + money(tt.value), function (who) {
+      var di = {}, dm = {};
+      lines.forEach(function (l) {
+        var it = byId(l.id);
+        if (!it) return;
+        if (l.cf != null && l.cf !== l.ef) { di[l.id] = (di[l.id] || 0) + (l.cf - l.ef); it.stock = l.cf; }
+        if (l.cm != null && l.cm !== l.em) { dm[l.id] = (dm[l.id] || 0) + (l.cm - l.em); it.main = l.cm; }
+      });
+      var rec = {
+        id: "c" + Date.now().toString(36), at: new Date().toISOString(), by: who.name,
+        lines: lines, count: lines.length, units: tt.units, value: r2(tt.value), short: tt.short
+      };
+      S.counts = [rec].concat(S.counts || []).slice(0, 40);
+      queueStock(di, {}, dm);               // the shelf wins; the till is corrected
+      put("state/counts", { list: S.counts });
+      S.counting = null;
+      renderStock(); renderItems(); updateBadges();
+      countReport(rec);
+    });
+  }
+
+  function countReport(rec) {
+    var bad = rec.lines.filter(function (l) { return l.diff; })
+      .sort(function (a, b) { return (a.diff * a.price) - (b.diff * b.price); });
+    var body = '<div class="l"><span>' + esc(t("Counted")) + "</span><span>" + rec.count + "</span></div>" +
+      '<div class="l"><span>' + esc(t("Items with a difference")) + "</span><span>" + bad.length + "</span></div>" +
+      '<div class="l"><span>' + esc(t("Units")) + "</span><span>" + (rec.units > 0 ? "+" : "") + rec.units + "</span></div>" +
+      '<div class="l big" style="color:' + (rec.value < 0 ? "var(--bad)" : "var(--ok)") + '"><span>' +
+      esc(t("Value at selling price")) + "</span><span>" + (rec.value > 0 ? "+" : "") + money(rec.value) + "</span></div><hr>" +
+      (bad.length ? bad.map(function (l) {
+        return '<div class="l"><span dir="auto">' + esc(LANG === "ar" && l.ar ? l.ar : l.name) + "</span><span>" +
+          (l.diff > 0 ? "+" : "") + l.diff + " · " + money(l.diff * l.price) + "</span></div>";
+      }).join("") : '<div class="l"><span>' + esc(t("Everything matched.")) + "</span><span></span></div>");
+
+    modal('<div class="rcpt"><div class="rh"><div class="n">' + esc(t("Stocktake")) + "</div>" +
+      '<div class="s">El Empratour · ' + esc(whenStr(rec.at)) + " · " + esc(rec.by) + "</div></div>" + body + "</div>" +
+      '<div class="acts"><button class="btn" id="prCount" type="button">' + esc(t("Print")) + "</button>" +
+      '<button class="btn primary" id="okCount" type="button">' + esc(t("Done")) + "</button></div>");
+    $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' + esc(t("Stocktake")) +
+      "<br>" + esc(whenStr(rec.at)) + " · " + esc(rec.by) + "</div><hr>" + body;
+    $("prCount").addEventListener("click", function () { window.print(); });
+    $("okCount").addEventListener("click", closeModal);
+  }
+
+  function renderCountSheet() {
+    var lines = countLines(), tt = countTotals(lines);
+    $("stockTiles").innerHTML =
+      tile(t("Counted"), tt.done + " / " + lines.length, "") +
+      tile(t("Units"), (tt.units > 0 ? "+" : "") + tt.units, tt.units ? "warn" : "") +
+      tile(t("Value at selling price"), money(tt.value), tt.value < 0 ? "bad" : "") +
+      tile(t("Items short"), tt.short, tt.short ? "bad" : "");
+
+    $("moveWarn").innerHTML = '<div class="panel padded" style="margin-bottom:14px">' +
+      '<p class="eyebrow" style="margin:0 0 8px">' + esc(t("Stocktake")) + "</p>" +
+      '<p class="hint" style="margin:0 0 10px">' + esc(t("Type what is really there. Leave a box empty to skip that item.")) + "</p>" +
+      '<div class="t-tools" style="max-width:360px">' +
+        '<button type="button" id="cntSave">' + esc(t("Save the count")) + "</button>" +
+        '<button type="button" id="cntNo">' + esc(t("Cancel")) + "</button>" +
+      "</div></div>";
+    $("cntSave").addEventListener("click", countSave);
+    $("cntNo").addEventListener("click", countCancel);
+
+    $("stockHead").innerHTML = '<th class="stripe"></th><th>' + esc(t("Item")) + "</th>" +
+      '<th class="r">' + esc(t("Fridge")) + '</th><th>' + esc(t("Counted")) + "</th>" +
+      '<th class="r">' + esc(t("Main store")) + '</th><th>' + esc(t("Counted")) + "</th>" +
+      '<th class="r">' + esc(t("Difference")) + "</th>";
+
+    $("stockRows").innerHTML = lines.map(function (l) {
+      var cls = !l.done ? "" : (l.diff < 0 ? "out" : (l.diff > 0 ? "low" : "ok"));
+      return "<tr>" + '<td class="stripe ' + cls + '"></td>' +
+        '<td><strong dir="auto">' + esc(l.name) + "</strong>" +
+        (l.ar ? '<span class="ar" dir="auto">' + esc(l.ar) + "</span>" : "") + "</td>" +
+        '<td class="r num" style="color:var(--txt-3)">' + l.ef + "</td>" +
+        '<td><input class="cnt-in" type="number" min="0" inputmode="numeric" data-cf="' + l.id +
+          '" value="' + (l.cf == null ? "" : l.cf) + '"></td>' +
+        '<td class="r num" style="color:var(--txt-3)">' + l.em + "</td>" +
+        '<td><input class="cnt-in" type="number" min="0" inputmode="numeric" data-cm="' + l.id +
+          '" value="' + (l.cm == null ? "" : l.cm) + '"></td>' +
+        '<td class="r num" style="font-size:15px;color:' +
+          (!l.done || !l.diff ? "var(--txt-3)" : (l.diff < 0 ? "var(--bad)" : "var(--ok)")) + '">' +
+          (l.done ? (l.diff > 0 ? "+" : "") + l.diff : "—") + "</td></tr>";
+    }).join("");
+    updateBadges();
+  }
+
+  function askMove(id) {
+    var it = byId(id);
+    if (!it || !(Number(it.main) || 0)) return;
+    modal('<div class="padded stack"><h3>' + esc(t("Transfer to fridge")) + "</h3>" +
+      '<p class="hint" style="margin:0" dir="auto">' + esc(nm(it)) + " · " + esc(t("Main store")) + " " +
+      (Number(it.main) || 0) + " · " + esc(t("Fridge")) + " " + (Number(it.stock) || 0) + "</p>" +
+      '<div class="fld"><label for="mvQty">' + esc(t("How much to move?")) + "</label>" +
+      '<input class="big-in" id="mvQty" type="number" min="1" step="1" max="' + (Number(it.main) || 0) +
+      '" value="' + Math.min(12, Number(it.main) || 0) + '"></div></div>' +
+      '<div class="acts"><button class="btn" id="mvNo" type="button">' + esc(t("Cancel")) + "</button>" +
+      '<button class="btn primary" id="mvYes" type="button">' + esc(t("Transfer")) + "</button></div>");
+    $("mvNo").addEventListener("click", closeModal);
+    $("mvYes").addEventListener("click", function () {
+      var n = moveToFridge(id, $("mvQty").value);
+      closeModal(); renderStock(); renderItems(); updateBadges();
+      if (n) toast(t("Moved to the fridge") + " · " + n);
+    });
+    setTimeout(function () { var el = $("mvQty"); if (el) { el.focus(); el.select(); } }, 50);
+  }
+  $("moveWarn").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-move]");
+    if (b) askMove(b.dataset.move);
+  });
+  function lastCount() { return (S.counts || [])[0] || null; }
+  function lastCountLabel() {
+    var c = lastCount();
+    if (!c) return "—";
+    return money(c.value) + " · " + whenStr(c.at);
+  }
+  $("cntStart").addEventListener("click", function () {
+    if (S.counting) { countCancel(); return; }
+    countStart();
+  });
+  $("cntLog").addEventListener("click", function () {
+    var list = S.counts || [];
+    modal('<div class="padded stack"><h3>' + esc(t("Stocktake")) + " · " + esc(t("History")) + "</h3>" +
+      (list.length ? '<dl class="kv">' + list.slice(0, 20).map(function (c) {
+        return "<dt>" + esc(whenStr(c.at)) + " · " + esc(c.by) + "</dt><dd>" +
+          '<button class="btn sm" data-cnt="' + esc(c.id) + '" type="button">' +
+          money(c.value) + " · " + c.count + "</button></dd>";
+      }).join("") + "</dl>" : '<p class="hint" style="margin:0">' + esc(t("No stocktake yet.")) + "</p>") +
+      "</div>" +
+      '<div class="acts"><button class="btn primary" id="cntLogNo" type="button">' + esc(t("Done")) + "</button></div>");
+    $("cntLogNo").addEventListener("click", closeModal);
+    $("modalMount").addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-cnt]");
+      if (!b) return;
+      var rec = (S.counts || []).filter(function (x) { return x.id === b.dataset.cnt; })[0];
+      if (rec) { closeModal(); countReport(rec); }
+    });
+  });
   $("stockScope").addEventListener("change", function (e) { S.stockScope = e.target.value; renderStock(); });
   $("stockFilter").addEventListener("change", function (e) { S.stockFilter = e.target.value; renderStock(); });
   $("stockRows").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-s]"), g = e.target.closest("button[data-ig]"),
-        w = e.target.closest("button[data-waste]");
+        w = e.target.closest("button[data-waste]"), ms = e.target.closest("button[data-ms]"),
+        mv = e.target.closest("button[data-move]");
+    if (mv) { askMove(mv.dataset.move); return; }
+    if (ms) {
+      var mit = byId(ms.dataset.ms);
+      if (mit) { mainSet(mit.id, (Number(mit.main) || 0) + Number(ms.dataset.d)); renderStock(); }
+      return;
+    }
     if (b) {
       var it = byId(b.dataset.s);
       if (it) { stockSet("item", it.id, (Number(it.stock) || 0) + Number(b.dataset.d)); renderStock(); }
@@ -3099,9 +3388,18 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     }
   });
   $("stockRows").addEventListener("change", function (e) {
-    var a = e.target.closest("input[data-set]"), b = e.target.closest("input[data-iset]");
+    var a = e.target.closest("input[data-set]"), b = e.target.closest("input[data-iset]"),
+        m = e.target.closest("input[data-mset]");
     if (a) { stockSet("item", a.dataset.set, a.value); renderStock(); }
     if (b) { stockSet("ing", b.dataset.iset, b.value); renderStock(); }
+    if (m) { mainSet(m.dataset.mset, m.value); renderStock(); }
+    var cf = e.target.closest("input[data-cf]"), cm = e.target.closest("input[data-cm]");
+    if ((cf || cm) && S.counting) {
+      // keep the caret where it is: only the totals and this row's gap change
+      if (cf) S.counting.f[cf.dataset.cf] = cf.value;
+      if (cm) S.counting.m[cm.dataset.cm] = cm.value;
+      renderCountSheet();
+    }
   });
 
   /* ============ sales & reports ============ */
@@ -3443,6 +3741,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   /* ============ setup ============ */
   function renderSetup() {
     $("setCur").value = S.settings.currency;
+    $("setTax").value = S.settings.taxNo || "";
     $("setSrv").value = S.settings.service;
     $("setVat").value = S.settings.vat;
     $("setLow").value = S.settings.low;
@@ -3464,8 +3763,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       "</div>" +
       '<dl class="kv"><dt>' + esc(t("Saved to")) + "</dt><dd>" +
         esc(xlsDir ? (xlsDir.name || t("Chosen folder")) : t("Downloads")) + "</dd>" +
-        "<dt>" + esc(t("Last saved")) + "</dt><dd>" + esc(lastXlsLabel()) + "</dd></dl>" +
+        "<dt>" + esc(t("Last saved")) + "</dt><dd>" + esc(lastXlsLabel()) + "</dd>" +
+        "<dt>" + esc(t("Today's copy")) + "</dt><dd>" + esc(sentLabel(dayKey())) + "</dd></dl>" +
+      '<div class="fld" style="max-width:340px"><label for="mailTo">' + esc(t("Your email")) + "</label>" +
+      '<input id="mailTo" type="email" inputmode="email" value="' + esc(S.settings.mailTo || "") + '"></div>' +
       '<div class="t-tools" style="max-width:420px">' +
+        '<button type="button" id="mailNow">' + esc(t("Send the day")) + "</button>" +
         '<button type="button" id="xlsNow">' + esc(t("Save today now")) + "</button>" +
         (canDir ? '<button type="button" id="xlsPick">' + esc(t("Choose a folder")) + "</button>" : "") +
         (xlsDir ? '<button type="button" id="xlsClear">' + esc(t("Use Downloads")) + "</button>" : "") +
@@ -3477,6 +3780,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       saveConfig(); renderXls(); toast(t("Saved"));
     });
     $("xlsNow").addEventListener("click", function () { saveDayXls(dayKey()); });
+    $("mailNow").addEventListener("click", function () { sendDay(dayKey()); });
+    $("mailTo").addEventListener("change", function (e) {
+      S.settings.mailTo = (e.target.value || "").trim();
+      saveConfig(); toast(t("Saved"));
+    });
     if ($("xlsPick")) $("xlsPick").addEventListener("click", function () {
       window.showDirectoryPicker({ mode: "readwrite" }).then(function (h) {
         xlsDir = h; return saveDirHandle(h);
@@ -3539,10 +3847,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       saveConfig(); toast(t("Saved"));
     });
   });
-  ["setCur","setSrv","setVat","setLow","setDisc","setPts"].forEach(function (id) {
+  ["setCur","setTax","setSrv","setVat","setLow","setDisc","setPts"].forEach(function (id) {
     $(id).addEventListener("change", function (e) {
       var v = e.target.value;
       if (id === "setCur") S.settings.currency = v.trim() || "EGP";
+      if (id === "setTax") S.settings.taxNo = v.trim();
       if (id === "setSrv") S.settings.service = Math.max(0, Number(v) || 0);
       if (id === "setVat") S.settings.vat = Math.max(0, Number(v) || 0);
       if (id === "setLow") S.settings.low = Math.max(0, Math.round(Number(v) || 0));
@@ -4237,14 +4546,27 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (xl.length) erows.push([B(t("Total")), "", "", "", "", "", sumF("G", 2, xl.length + 1, r2(xa))]);
 
     /* ---- Stock ---- */
-    var srows = [[H(t("Item")), H(t("Arabic")), H(t("Category")), H(t("In stock")), H(t("Low at"))]];
+    var srows = [[H(t("Item")), H(t("Arabic")), H(t("Category")), H(t("Fridge")), H(t("Main store")),
+      H(t("Stock total")), H(t("Low at"))]];
     S.menu.filter(function (i) { return i.track; }).forEach(function (i) {
-      srows.push([i.name, i.ar || "", t(i.cat), Number(i.stock) || 0, i.low == null ? S.settings.low : i.low]);
+      var fr = Number(i.stock) || 0, mn = Number(i.main) || 0;
+      srows.push([i.name, i.ar || "", t(i.cat), fr, mn, fr + mn, i.low == null ? S.settings.low : i.low]);
     });
     srows.push([]);
     srows.push([H(t("Ingredients")), H(t("Arabic")), H(t("Unit")), H(t("In stock")), H(t("Cost"))]);
     S.ings.forEach(function (g) {
       srows.push([g.name, g.ar || "", g.unit || "", Number(g.stock) || 0, M(r2(g.cost))]);
+    });
+
+    // any stocktake done on this day, so the gap is in the book he keeps
+    var cToday = (S.counts || []).filter(function (c) { return dayKey(new Date(c.at)) === k; });
+    cToday.forEach(function (c) {
+      srows.push([]);
+      srows.push([H(t("Stocktake")), H(whenStr(c.at)), H(c.by), H(t("Difference")), H(t("Value at selling price"))]);
+      c.lines.filter(function (l) { return l.diff; }).forEach(function (l) {
+        srows.push([l.name, l.ar || "", "", l.diff, M(r2(l.diff * l.price))]);
+      });
+      srows.push([B(t("Stock total")), "", "", c.units, BM(r2(c.value))]);
     });
 
     return workbook([
@@ -4253,7 +4575,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         widths: [9, 7, 6, 10, 8, 12, 20, 9, 9, 10, 8, 8, 28, 22, 18, 8, 10, 12, 10, 10, 10, 12] },
       { name: t("Items sold"), rows: irows, widths: [30, 24, 16, 10, 14] },
       { name: t("Expenses"), rows: erows, widths: [8, 16, 30, 12, 7, 14, 14] },
-      { name: t("Stock"), rows: srows, widths: [30, 24, 16, 12, 12] }
+      { name: t("Stock"), rows: srows, widths: [30, 24, 16, 11, 13, 11, 10] }
     ]);
   }
 
@@ -4355,6 +4677,83 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     }
   }
 
+  /* ---- sending the day out of the tablet ----
+     A page with no server of its own cannot put an email on the wire, and an
+     email key sitting in a public repository would be worse than no backup at
+     all. So this hands both finished files to the tablet's own share sheet
+     with the day's figures as the message: one tap on Gmail and it is gone,
+     and the files are really attached, not a link that expires. */
+  function daySummaryText(k) {
+    var orders = S.sales[k] || [], sm = sums(orders);
+    var xl = dayExpenses(k), xa = sumExp(xl);
+    var shiftsToday = S.shifts.filter(function (r) { return dayKey(new Date(r.closedAt)) === k; });
+    var diff = shiftsToday.reduce(function (a, r) { return a + (Number(r.diff) || 0); }, 0);
+    var L = [
+      "EL EMPRATOUR — " + t("Day report") + " · " + k,
+      t("Orders") + ": " + sm.n,
+      t("Items sold") + ": " + sm.items,
+      t("Gross") + ": " + money(sm.gross) + " " + cur(),
+      t("Expenses") + ": " + money(xa) + " " + cur(),
+      t("Net income") + ": " + money(sm.gross - xa) + " " + cur()
+    ];
+    if (sm.tips) L.splice(4, 0, t("Extra kept") + ": " + money(sm.tips) + " " + cur());
+    if (sm.refunds) L.push(t("Refunded") + ": " + money(sm.refunds) + " " + cur());
+    if (shiftsToday.length) L.push(t("Difference") + ": " + money(diff) + " " + cur());
+    L.push("");
+    L.push(t("The Excel report and the rescue file are attached."));
+    return L.join("\n");
+  }
+  function dayFiles(k) {
+    var out = [];
+    try {
+      out.push(new File([dayWorkbook(k)], xlsName(k),
+        { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    } catch (e) {}
+    try {
+      out.push(new File([JSON.stringify(snapshot())], bakName(k), { type: "application/json" }));
+    } catch (e) {}
+    return out;
+  }
+  function markSent(k) {
+    S.settings.sentDays = S.settings.sentDays || {};
+    S.settings.sentDays[k] = Date.now();
+    var ds = Object.keys(S.settings.sentDays).sort();
+    while (ds.length > 90) { delete S.settings.sentDays[ds.shift()]; }
+    saveConfig();
+  }
+  function sentLabel(k) {
+    var at = (S.settings.sentDays || {})[k];
+    return at ? t("Sent") + " · " + hhmm(new Date(at).toISOString()) : t("Not sent yet");
+  }
+  function sendDay(k) {
+    var files = dayFiles(k), text = daySummaryText(k);
+    var subject = "El Empratour · " + t("Day report") + " " + k;
+    // the share sheet must be opened inside the tap, so nothing async first
+    if (files.length && navigator.canShare && navigator.share) {
+      var payload = { files: files, title: subject, text: text };
+      if (navigator.canShare(payload)) {
+        navigator.share(payload).then(function () {
+          markSent(k); renderXls && renderXls();
+          toast(t("Sent"));
+        }).catch(function () {});
+        return;
+      }
+    }
+    // older tablet: put both files in Downloads and open the mail app ready to attach
+    saveDayXls(k, true);
+    setTimeout(function () { saveDayBackup(k); }, 900);
+    var to = (S.settings.mailTo || "").trim();
+    var body = text + "\n\n" + t("Attach the two files from the Downloads folder.");
+    setTimeout(function () {
+      try {
+        window.location.href = "mailto:" + encodeURIComponent(to) +
+          "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
+      } catch (e) {}
+      markSent(k);
+      toast(t("Attach the two files from the Downloads folder."));
+    }, 1800);
+  }
+
   // yesterday's book, written by itself the first time the till is used today
   function autoDailyXls() {
     if (S.settings.autoXls === false) return;
@@ -4454,6 +4853,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (!S.groups.length) S.groups = seedGroups();
     if (!S.ings.length) S.ings = seedIngredients();
     if (!S.tables.length) S.tables = seedTables();
+    splitStockOnce();
     S.salesDay = dayKey();
 
     try {
