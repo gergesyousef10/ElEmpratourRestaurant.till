@@ -849,7 +849,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     "Transfer to fridge":"تحويل للثلاجة","How much to move?":"تنقل كام؟","Moved to the fridge":"اتحول للثلاجة",
     "Needs moving from the main store":"محتاج تحويل من المخزن الرئيسي","Stock total":"الإجمالي",
     "Send the day":"ابعت اليوم","Your email":"إيميلك","Tax reg. no.":"س.ت. ضريبي",
-    "Stocktake":"جرد","History":"السجل","Cleared before paying":"فواتير اتمسحت قبل الدفع","Paid back out":"مرتجع من الدرج","Save the count":"حفظ الجرد","Counted":"المعدود","Units":"وحدات","Items short":"أصناف ناقصة",
+    "Stocktake":"جرد","History":"السجل","Cleared before paying":"فواتير اتمسحت قبل الدفع","Paid back out":"مرتجع من الدرج",
+    "Paste the five values from your Firebase project. They stay on this tablet.":"الصق الخمس قيم من مشروع Firebase. بتتخزن على التابلت ده و مش بتترفع على الموقع.",
+    "Till account email":"إيميل حساب الخزينة","Fill in every box.":"املا كل الخانات.","Forget these settings":"امسح الإعدادات دي",
+    "Daily restore points":"نسخ يومية في السحابة",
+    "Saved by itself when you close a shift. Tap a day to put the till back to it.":"بتتحفظ لوحدها أول ما تقفل الوردية. دوس على يوم عشان ترجّع النظام لحالته فيه.",
+    "Save a restore point now":"احفظ نسخة دلوقتي","That day is not in the cloud.":"اليوم ده مش موجود في السحابة.","Save the count":"حفظ الجرد","Counted":"المعدود","Units":"وحدات","Items short":"أصناف ناقصة",
     "Value at selling price":"القيمة بسعر البيع","Items with a difference":"أصناف فيها فرق","Everything matched.":"كل حاجة مطابقة.","Nothing counted yet.":"لسه ما عدّيتش حاجة.",
     "No stocktake yet.":"مفيش جرد لسه.","Last stocktake":"آخر جرد","Type what is really there. Leave a box empty to skip that item.":"اكتب اللي موجود فعلاً. سيب الخانة فاضية لو مش عايز تعدّ الصنف ده.","Today's copy":"نسخة النهارده","Sent":"اتبعت","Not sent yet":"لسه ما اتبعتش",
     "The Excel report and the rescue file are attached.":"مرفق ملف الإكسل و ملف الإنقاذ.","Attach the two files from the Downloads folder.":"ارفق الملفين من مجلد التنزيلات.",
@@ -1306,6 +1311,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (d.settings) S.settings = Object.assign({}, DEFAULT_SETTINGS, d.settings);
     S.settings.fx = Object.assign({ USD: 0, EUR: 0, GBP: 0 }, S.settings.fx || {});
     if (typeof d.counter === "number") S.counter = d.counter;
+    if (Array.isArray(d.parked)) {
+      // a held check that came back with impossible quantities is repaired here,
+      // and one with nothing left in it is dropped rather than shown as a check
+      d.parked = d.parked.map(function (pk) {
+        if (pk && pk.cart) pk.cart = cleanCart(pk.cart);
+        return pk;
+      }).filter(function (pk) { return pk && !pk.del && pk.cart && pk.cart.length; });
+    }
     ["menu", "groups", "ings", "tables", "customers", "expenses", "staff", "shifts", "clock", "parked", "counts",
      "cleared", "adjust"].forEach(function (k) {
       if (Array.isArray(d[k])) S[k] = d[k];
@@ -1638,7 +1651,28 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
 
   /* ---------- optional Firebase backend (used by the self-hosted build) ---------- */
-  var FBCFG = (typeof window !== "undefined" && window.EE_FIREBASE) ? window.EE_FIREBASE : null;
+  /* The cloud settings live on the tablet, not in the published files: the
+     site is hosted from a public repository and nothing about the restaurant's
+     database belongs there. config.js is still honoured as a fallback. */
+  var FB_KEY = LS_KEY + ":fb";
+  function fbSaved() {
+    try {
+      var r = localStorage.getItem(FB_KEY);
+      var o = r ? JSON.parse(r) : null;
+      return (o && o.projectId) ? o : null;
+    } catch (e) { return null; }
+  }
+  function fbSave(cfg) {
+    try { localStorage.setItem(FB_KEY, JSON.stringify(cfg)); } catch (e) {}
+    FBCFG = cfg && cfg.projectId ? cfg : null;
+  }
+  function fbForget() {
+    try { localStorage.removeItem(FB_KEY); } catch (e) {}
+    FBCFG = (typeof window !== "undefined" && window.EE_FIREBASE && window.EE_FIREBASE.projectId)
+      ? window.EE_FIREBASE : null;
+  }
+  var FBCFG = fbSaved() ||
+    ((typeof window !== "undefined" && window.EE_FIREBASE && window.EE_FIREBASE.projectId) ? window.EE_FIREBASE : null);
   var fbReady = false;
   function fbBases() {
     return ["https://www.gstatic.com/firebasejs/10.12.2/",
@@ -1711,6 +1745,42 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       if (S.tab === "setup") renderSetup();
     });
   }
+  /* A dated restore point. The live sync already mirrors every order as it
+     happens; this is the separate thing — one document per day holding the
+     prices, staff, stock levels and that day's trade, so a bad edit or a
+     corrupted device can be undone by going back to a known good day. */
+  function cloudBackupDoc(k) {
+    var day = {};
+    day[k] = (S.sales[k] || []);
+    return {
+      day: k, at: new Date().toISOString(), by: S.me ? S.me.name : "", dev: DEVICE,
+      settings: S.settings, counter: S.counter,
+      menu: S.menu, groups: S.groups, ings: S.ings, tables: S.tables,
+      staff: S.staff, customers: S.customers,
+      sales: day,
+      expenses: (S.expenses || []).filter(function (e) { return dayKey(new Date(e.at)) === k; }),
+      shifts: (S.shifts || []).filter(function (r) { return dayKey(new Date(r.closedAt)) === k; }),
+      counts: (S.counts || []).filter(function (c) { return dayKey(new Date(c.at)) === k; }),
+      cleared: (S.cleared || []).filter(function (c) { return dayKey(new Date(c.at)) === k; }),
+      adjust: (S.adjust || []).filter(function (x) { return dayKey(new Date(x.at)) === k; })
+    };
+  }
+  function cloudBackup(k) {
+    if (!DB) return Promise.resolve(false);
+    try {
+      return DB.doc("backups/" + k).set(cloudBackupDoc(k))
+        .then(function () {
+          S.settings.cloudDays = S.settings.cloudDays || {};
+          S.settings.cloudDays[k] = Date.now();
+          var ds = Object.keys(S.settings.cloudDays).sort();
+          while (ds.length > 120) { delete S.settings.cloudDays[ds.shift()]; }
+          saveConfig();
+          return true;
+        })
+        .catch(function () { return false; });
+    } catch (e) { return Promise.resolve(false); }
+  }
+
   function fbConnect(pass) {
     if (!fbReady) return Promise.reject(new Error("sdk"));
     return window.firebase.auth().signInWithEmailAndPassword(FBCFG.email, pass);
@@ -2065,6 +2135,24 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (it.grp && grpById(it.grp)) { optionSheet(it, null); return; }
     pushLine(it, 1, [], "");
   }
+  /* A ticket line can only ever mean "one or more of this". Anything else is
+     corruption — a half-written record, a bad merge, a value that came back
+     from storage as text — and it must never reach the screen or the money.
+     Everything that loads or changes a cart passes through here. */
+  function cleanCart(list) {
+    if (!Array.isArray(list)) return [];
+    return list.filter(function (l) {
+      if (!l || !l.id) return false;
+      var q = Math.floor(Number(l.qty));
+      if (!isFinite(q) || q < 1) return false;
+      l.qty = q;
+      if (!Array.isArray(l.opts)) l.opts = [];
+      if (typeof l.note !== "string") l.note = "";
+      if (!l.uid) l.uid = uid();
+      return true;
+    });
+  }
+
   function pushLine(it, qty, opts, note) {
     if (it.track && inCart(it.id) + qty > it.stock) {
       toast(t("Only") + " " + it.stock + " — " + nm(it), true); return;
@@ -2073,8 +2161,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var same = S.cart.filter(function (l) {
       return l.id === it.id && JSON.stringify(l.opts.map(function (o) { return o.name; })) + "|" + l.note === key;
     })[0];
-    if (same) same.qty += qty;
+    qty = Math.max(1, Math.floor(Number(qty) || 1));
+    if (same) same.qty = Math.max(1, Math.floor(Number(same.qty) || 0) + qty);
     else S.cart.push({ uid: uid(), id: it.id, qty: qty, opts: opts, note: note });
+    S.cart = cleanCart(S.cart);
     renderTicket(); renderItems();
   }
 
@@ -2122,7 +2212,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       });
       $("optYes").addEventListener("click", function () {
         var q = Math.max(1, Number($("lnQty").value) || 1), n = $("lnNote").value.trim();
-        if (line) { line.opts = chosen; line.note = n; line.qty = q; closeModal(); renderTicket(); renderItems(); }
+        if (line) {
+          line.opts = chosen; line.note = n;
+          line.qty = Math.max(1, Math.floor(Number(q) || 1));
+          S.cart = cleanCart(S.cart);
+          closeModal(); renderTicket(); renderItems();
+        }
         else { closeModal(); pushLine(it, q, chosen, n); }
       });
     }
@@ -2224,8 +2319,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (!l) return;
     var it = byId(l.id);
     if (d > 0 && it.track && inCart(it.id) + 1 > it.stock) { toast(t("Only") + " " + it.stock + " — " + nm(it), true); return; }
-    l.qty += d;
-    if (l.qty <= 0) S.cart = S.cart.filter(function (x) { return x.uid !== u; });
+    var q = Math.floor(Number(l.qty) || 0) + d;
+    if (q < 1) S.cart = S.cart.filter(function (x) { return x.uid !== u; });
+    else l.qty = q;
+    S.cart = cleanCart(S.cart);
     renderTicket(); renderItems();
   }
   /* A ticket wiped before it was ever charged leaves no trace anywhere else:
@@ -2283,6 +2380,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (!S.table) return;
     if (!S.cart.length) { releaseTable(); return; }
     if (!S.editing) S.editing = "p" + uid();
+    S.cart = cleanCart(S.cart);
+    if (!S.cart.length) { releaseTable(); return; }
     var rec = {
       id: S.editing, table: S.table, type: S.type, note: S.note,
       customer: S.customer, disc: S.disc, cart: S.cart.slice(),
@@ -2305,8 +2404,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     clearTimeout(parkT);
     if (!S.editing) return;
     var was = S.parked.filter(function (p) { return p.id === S.editing; })[0];
-    if (was) { was.del = true; was.upd = Date.now(); queueParked(was); }
+    // Drop it from the list FIRST. queueParked() saves to storage, and doing
+    // that while the record was still in the list wrote the "deleted" check
+    // back to disk — so it came back to life on the next reload and sat on the
+    // table for ever.
     S.parked = S.parked.filter(function (p) { return p.id !== S.editing; });
+    if (was) { was.del = true; was.upd = Date.now(); queueParked(was); }
     S.editing = null;
     updateBadges();
     if (S.tab === "tables") renderTables();
@@ -2472,7 +2575,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function recall(id) {
     var p = S.parked.filter(function (x) { return x.id === id; })[0];
     if (!p) return;
-    S.cart = p.cart; S.table = p.table; S.type = p.type; S.note = p.note || "";
+    // Take a copy. Sharing the array meant a line removed from the ticket
+    // stayed in the held check, and every recall handed it back to be pushed
+    // further below zero.
+    p.cart = cleanCart(p.cart);
+    S.cart = p.cart.map(function (l) {
+      return { uid: l.uid, id: l.id, qty: l.qty, opts: (l.opts || []).slice(), note: l.note || "" };
+    });
+    S.table = p.table; S.type = p.type; S.note = p.note || "";
     S.customer = p.customer || null; S.disc = p.disc || null; S.editing = p.id;
     S.svcOn = p.svcOn !== false; S.vatOn = p.vatOn !== false;
     Array.prototype.forEach.call(document.querySelectorAll(".seg button"), function (x) {
@@ -2483,7 +2593,9 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
 
   /* ============ tables view ============ */
-  function parkedFor(name) { return S.parked.filter(function (p) { return p.table === name; })[0]; }
+  function parkedFor(name) {
+    return S.parked.filter(function (p) { return p.table === name && !p.del; })[0];
+  }
   function renderTables() {
     $("tableGrid").innerHTML = S.tables.map(function (x) {
       var p = parkedFor(x.name);
@@ -3200,6 +3312,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     $("mailShift").addEventListener("click", function () { sendDay(dayKey(new Date(rec.closedAt))); });
     $("okShift").addEventListener("click", closeModal);
     if (S.settings.autoXls !== false) saveDayAuto(dayKey(new Date(rec.closedAt)));
+    cloudBackup(dayKey(new Date(rec.closedAt)));   // and a dated copy in the cloud
   }
 
   /* ============ stock ============ */
@@ -3952,7 +4065,35 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       });
       return;
     }
-    if (!FBCFG || !FBCFG.projectId) { wrap.hidden = true; return; }
+    // no project yet: let him type the five values here instead of publishing
+    // them in the repository
+    if (!FBCFG || !FBCFG.projectId) {
+      wrap.hidden = false;
+      $("cloudPanel").innerHTML = '<div class="stack">' +
+        '<p class="hint" style="margin:0">' + esc(t("Paste the five values from your Firebase project. They stay on this tablet.")) + "</p>" +
+        '<div class="grid2">' +
+          ["apiKey", "authDomain", "projectId", "appId"].map(function (f) {
+            return '<div class="fld"><label for="fb_' + f + '">' + esc(f) + "</label>" +
+              '<input id="fb_' + f + '" autocomplete="off" spellcheck="false"></div>';
+          }).join("") +
+          '<div class="fld"><label for="fb_email">' + esc(t("Till account email")) + "</label>" +
+          '<input id="fb_email" type="email" autocomplete="off" value="till@empratour.app"></div>' +
+        "</div>" +
+        '<div><button class="btn primary" id="fbSaveBtn" type="button">' + esc(t("Save")) + "</button></div></div>";
+      $("fbSaveBtn").addEventListener("click", function () {
+        var cfg = { site: "empratour" };
+        ["apiKey", "authDomain", "projectId", "appId"].forEach(function (f) {
+          cfg[f] = ($("fb_" + f).value || "").trim();
+        });
+        cfg.email = ($("fb_email").value || "").trim();
+        if (!cfg.projectId || !cfg.apiKey || !cfg.email) { toast(t("Fill in every box."), true); return; }
+        fbSave(cfg);
+        toast(t("Saved"));
+        renderCloud();
+        fbStart();
+      });
+      return;
+    }
     wrap.hidden = false;
     var u = fbUser();
     $("cloudPanel").innerHTML = u
@@ -3967,6 +4108,47 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         '<input id="cloudPw" type="password" autocomplete="current-password"></div>' +
         '<div><button class="btn primary" id="cloudIn" type="button">' + esc(t("Connect")) + "</button></div>" +
         '<div class="hint" id="cloudErr" style="color:var(--bad)"></div></div>';
+    if (u) {
+      var cd = S.settings.cloudDays || {};
+      var days = Object.keys(cd).sort().reverse().slice(0, 14);
+      $("cloudPanel").insertAdjacentHTML("beforeend",
+        '<div class="stack" style="margin-top:14px">' +
+        '<p class="eyebrow" style="margin:0">' + esc(t("Daily restore points")) + "</p>" +
+        '<p class="hint" style="margin:0">' + esc(t("Saved by itself when you close a shift. Tap a day to put the till back to it.")) + "</p>" +
+        (days.length ? '<dl class="kv">' + days.map(function (k) {
+          return "<dt>" + esc(prettyDay(k)) + '</dt><dd><button class="btn sm" data-cday="' + esc(k) + '" type="button">' +
+            esc(t("Restore")) + "</button></dd>";
+        }).join("") + "</dl>" : '<p class="hint" style="margin:0">—</p>') +
+        '<div><button class="btn" id="cloudNow" type="button">' + esc(t("Save a restore point now")) + "</button></div></div>");
+      $("cloudNow").addEventListener("click", function () {
+        cloudBackup(dayKey()).then(function (ok) {
+          toast(ok ? t("Saved") : t("Could not connect."), !ok);
+          renderCloud();
+        });
+      });
+      Array.prototype.forEach.call($("cloudPanel").querySelectorAll("button[data-cday]"), function (b2) {
+        b2.addEventListener("click", function () {
+          var k = b2.dataset.cday;
+          askManager(t("Restore") + " · " + prettyDay(k), function () {
+            DB.doc("backups/" + k).get().then(function (d) {
+              if (!d.exists) { toast(t("That day is not in the cloud."), true); return; }
+              adopt(d.data()); saveLocal(); renderAll(); applyRole();
+              toast(t("Backup restored"));
+            }).catch(function () { toast(t("Could not connect."), true); });
+          });
+        });
+      });
+    }
+    $("cloudPanel").insertAdjacentHTML("beforeend",
+      '<div style="margin-top:12px"><button class="btn sm danger" id="fbForgetBtn" type="button">' +
+      esc(t("Forget these settings")) + "</button></div>");
+    $("fbForgetBtn").addEventListener("click", function () {
+      askManager(t("Forget these settings"), function () {
+        try { fbSignOut(); } catch (e) {}
+        fbForget(); DB = null; DBSTATE = "off"; setSync("This device", false);
+        renderCloud(); toast(t("Saved"));
+      });
+    });
     if ($("cloudOut")) $("cloudOut").addEventListener("click", function () { fbSignOut(); });
     if ($("cloudIn")) $("cloudIn").addEventListener("click", function () {
       var pw = $("cloudPw").value;
@@ -4993,6 +5175,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 
   (function boot() {
     adopt(loadLocal());
+    saveLocal();          // write back whatever adopt() had to repair
     loadOut();
     if (!S.menu.length) S.menu = seedMenu();
     if (!S.staff.length) S.staff = seedStaff();
