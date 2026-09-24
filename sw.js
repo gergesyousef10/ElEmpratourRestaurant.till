@@ -2,7 +2,7 @@
    Cache first, so the till opens instantly with no network at all, and
    quietly refreshes itself in the background whenever there is one.   */
 
-var CACHE = "ee-cashier-v16";
+var CACHE = "ee-cashier-v18";
 var SHELL = ["./", "index.html", "config.js", "manifest.json", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", function (e) {

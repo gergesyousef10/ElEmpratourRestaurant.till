@@ -76,7 +76,7 @@ header.top{border-bottom:1px solid var(--line);background:var(--panel);position:
   letter-spacing:.06em;color:var(--gold-lt);text-transform:uppercase}
 .brand p{margin:3px 0 0;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--txt-3)}
 .topright{margin-inline-start:auto;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;min-height:44px;
   border:1px solid var(--line-2);background:var(--raise);font-size:11.5px;letter-spacing:.1em;
   text-transform:uppercase;color:var(--txt-2);white-space:nowrap}
 .chip .dot{width:7px;height:7px;border-radius:50%;background:var(--txt-3);flex:none}
@@ -85,7 +85,7 @@ header.top{border-bottom:1px solid var(--line);background:var(--panel);position:
 .chip.warn .dot{background:var(--warn)}
 #syncChip{cursor:pointer}
 .ghost{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line-2);
-  background:var(--raise);color:var(--txt-2);border-radius:10px;
+  background:var(--raise);color:var(--txt-2);border-radius:10px;min-height:44px;
   padding:7px 13px;font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
   transition:background .14s,color .14s,border-color .14s}
 .ghost:hover{color:var(--on-gold);background:var(--gold);border-color:var(--gold)}
@@ -97,10 +97,11 @@ header.top{border-bottom:1px solid var(--line);background:var(--panel);position:
   stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 nav.tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:8px}
 nav.tabs::-webkit-scrollbar{display:none}
+/* Fingers, not a mouse. Nothing a waiter taps during service is under 44px. */
 nav.tabs button{display:inline-flex;align-items:center;gap:8px;background:var(--sunk);
   border:1px solid var(--line);border-radius:11px;color:var(--txt-2);
-  padding:9px 14px;font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
-  white-space:nowrap;transition:background .14s,color .14s,border-color .14s}
+  padding:9px 14px;min-height:46px;font-size:12.5px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;white-space:nowrap;transition:background .14s,color .14s,border-color .14s}
 nav.tabs button:hover{background:var(--raise);color:var(--txt);border-color:var(--line-2)}
 nav.tabs button[aria-selected="true"]{background:var(--gold);border-color:var(--gold);color:var(--on-gold)}
 nav.tabs button[aria-selected="true"] svg{stroke-width:2}
@@ -126,7 +127,7 @@ main{padding-block:18px 40px}
 .btn.primary:hover{background:var(--gold-lt);color:var(--on-gold)}
 .btn.danger{color:var(--bad);border-color:rgba(200,87,63,.5)}
 .btn.danger:hover{border-color:var(--bad);color:var(--bad)}
-.btn.sm{padding:7px 12px;font-size:12.5px}
+.btn.sm{padding:7px 12px;font-size:12.5px;min-height:44px}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .fld{display:flex;flex-direction:column;gap:4px}
 .fld label{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt-3)}
@@ -137,7 +138,7 @@ main{padding-block:18px 40px}
 /* ---------- order ---------- */
 .order-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start}
 .cats{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
-.cats button{border:1px solid var(--line);background:var(--raise);color:var(--txt-2);border-radius:9px;
+.cats button{border:1px solid var(--line);background:var(--raise);color:var(--txt-2);border-radius:9px;min-height:44px;
   padding:7px 12px;font-size:12px;font-weight:600;transition:background .14s,color .14s,border-color .14s}
 .cats button:hover{background:var(--panel);color:var(--txt);border-color:var(--line-2)}
 .cats button[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:var(--on-gold);font-weight:600}
@@ -152,13 +153,23 @@ main{padding-block:18px 40px}
 .item:disabled{opacity:.42;cursor:not-allowed}
 .item .nm{font-weight:600;font-size:14.5px;line-height:1.25;color:var(--txt)}
 .item .ar{font-size:12px;color:var(--txt-3);line-height:1.3;margin-top:-3px}
+/* The second-language name carries dir="auto" so its own letters shape
+   correctly, but that also flipped which edge it aligned to — in a table the
+   Arabic name flew across the row and landed under the price column. Isolate
+   the text, and let the PAGE decide the edge. */
+td .ar,td strong[dir="auto"],.mrow .nmbtn small{display:block;unicode-bidi:isolate;text-align:left}
+[dir="rtl"] td .ar,[dir="rtl"] td strong[dir="auto"],[dir="rtl"] .mrow .nmbtn small{text-align:right}
 .item .foot{margin-top:auto;display:flex;align-items:baseline;justify-content:space-between;gap:8px;
   min-width:0}
-.item .foot .pill{min-width:0;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+/* The stock badge used to be clipped with an ellipsis, which cut off the
+   one part that matters — how many are left in the main store. It wraps now. */
+.item .foot{flex-wrap:wrap}
+.item .foot .pill{min-width:0;flex:1 1 100%;order:2}
+.item .foot .pr{order:1}
 .item .foot .pr{flex:0 0 auto}
 .item .pr{font-family:var(--mono);font-size:14px;color:var(--gold-lt);font-weight:500}
 .item .pr s{color:var(--txt-3);font-size:11.5px;font-weight:400;margin-inline-start:3px}
-.pill{font-family:var(--mono);font-size:10.5px;padding:2px 7px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
+.pill{font-family:var(--mono);font-size:10.5px;padding:2px 7px;border-radius:999px;border:1px solid transparent;white-space:normal;line-height:1.35}
 .pill.ok{background:var(--ok-dim);color:var(--ok);border-color:var(--ok)}
 .pill.low{background:var(--warn-dim);color:var(--warn);border-color:var(--warn)}
 .pill.out{background:var(--bad-dim);color:var(--bad);border-color:var(--bad)}
@@ -179,7 +190,7 @@ main{padding-block:18px 40px}
 .t-head .caret{display:none}
 .t-meta{display:grid;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
 .seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
-.seg button{flex:1;background:var(--raise);border:0;padding:9px 4px;font-size:12px;font-weight:700;
+.seg button{flex:1;min-height:46px;background:var(--raise);border:0;padding:9px 4px;font-size:12px;font-weight:700;
   letter-spacing:.06em;text-transform:uppercase;color:var(--txt-2);transition:background .14s,color .14s}
 .seg button[aria-pressed="true"]{background:var(--gold-dim);color:var(--gold-lt)}
 /* Four across is right for the ticket's short labels; anywhere else the
@@ -195,7 +206,11 @@ main{padding-block:18px 40px}
 .t-tools button:hover{border-color:var(--gold);color:var(--gold-lt)}
 .t-tools button.off{color:var(--bad);border-color:var(--bad);background:var(--bad-dim)}
 .t-meta .hint:empty{display:none}
-.t-lines{overflow-y:auto;flex:1 1 auto;min-height:150px;overscroll-behavior:contain}
+.t-lines{overflow-y:auto;flex:1 1 auto;min-height:150px;overscroll-behavior:contain;
+  /* a soft fade at the bottom edge, so a long check visibly has more below */
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent);
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 22px),transparent)}
+.t-lines.short{-webkit-mask-image:none;mask-image:none}
 /* name, quantity and money on ONE row — the item list is the part of the
    screen that has to hold the most, so nothing else gets a row of its own. */
 .line{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:2px 10px;align-items:center;
@@ -266,7 +281,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 .stripe.free{background:var(--line-2)}
 .stepper{display:inline-flex;align-items:center;gap:6px}
 .stepper .btn.sm{width:auto;min-width:40px;padding-inline:9px;font-family:var(--mono)}
-.stepper button{width:28px;height:28px;border-radius:8px;border:1px solid var(--line-2);background:var(--raise);
+.stepper button{width:44px;height:44px;border-radius:8px;border:1px solid var(--line-2);background:var(--raise);
   color:var(--txt-2);font-size:16px;line-height:1;padding:0}
 .stepper button:hover{border-color:var(--gold);color:var(--gold-lt)}
 .stepper input{width:64px;text-align:center;background:var(--sunk);border:1px solid var(--line);
@@ -304,8 +319,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 .warnbox .l{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;
   border-bottom:1px solid var(--line)}
 .warnbox .l:last-of-type{border-bottom:0}
-.lnx{margin-inline-start:8px;width:26px;height:26px;border-radius:7px;border:1px solid var(--line-2);
-  background:var(--raise);color:var(--txt-3);font-size:13px;line-height:1;padding:0;vertical-align:middle}
+.lnx{margin-inline-start:8px;width:40px;height:40px;border-radius:7px;border:1px solid var(--line-2);
+  background:var(--raise);color:var(--txt-3);font-size:15px;line-height:1;padding:0;vertical-align:middle}
 .lnx:hover{border-color:var(--bad);color:var(--bad);background:var(--bad-dim)}
 .ord .body{padding:0 12px 12px;padding-inline-start:60px;display:grid;gap:4px;font-size:13px;color:var(--txt-2)}
 .ord .body .l{display:flex;justify-content:space-between;gap:12px}
@@ -326,7 +341,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 .big-in{width:100%;background:var(--sunk);border:1px solid var(--line-2);border-radius:10px;
   padding:12px 14px;font-family:var(--mono);font-size:21px;text-align:end;color:var(--txt)}
 .quick{display:flex;gap:6px;flex-wrap:wrap}
-.quick button{flex:1;min-width:62px;border:1px solid var(--line);background:var(--raise);border-radius:8px;
+.quick button{flex:1;min-width:62px;min-height:46px;border:1px solid var(--line);background:var(--raise);border-radius:8px;
   padding:7px 6px;font-family:var(--mono);font-size:13px;color:var(--txt-2)}
 .quick button:hover{border-color:var(--gold);color:var(--gold-lt)}
 .duebar{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
@@ -421,7 +436,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 /* Same trap everywhere else a number sits under or beside Arabic text: the
    value flips to LTR so the digits read correctly, which also flips which end
    "start" means, and it drifts away from its own label. Pin them together. */
-[dir="rtl"] .tile .v,[dir="rtl"] .mrow .num,[dir="rtl"] .kv dd{text-align:right}
+[dir="rtl"] .tile .v,[dir="rtl"] .mrow .num{text-align:right}
+/* a key/value list mirrors: the label on the right, its number on the LEFT,
+   the way the English side reads. Pinning both to the right jammed the two
+   together and left most of the panel empty. */
+[dir="rtl"] .kv dd{text-align:left}
 /* a caption ending in a Latin word (“الخامات EGP”) would otherwise sit a few
    pixels off its own number; take the caption's direction from its first word */
 [dir="rtl"] .tile .k{unicode-bidi:plaintext}
@@ -440,7 +459,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   .brandrow{padding-block:6px}
   .brand h1{font-size:19px}
   .brand p{display:none}
-  .chip{padding:4px 9px}
+  .chip{padding:4px 9px;min-height:40px}
   nav.tabs button{padding-block:9px}
   .t-head{padding:6px 14px}
   .t-head .ttl{font-size:15px}
@@ -456,7 +475,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   .send{padding:11px;font-size:13px}
   .clear{font-size:11px}
   .cats{gap:5px;margin-bottom:8px}
-  .cats button{padding:6px 11px;font-size:11.5px}
+  .cats button{padding:6px 11px;font-size:11.5px;min-height:42px}
   .search{padding:8px 12px;margin-bottom:9px}
   .t-lines{min-height:128px}
 }
@@ -468,10 +487,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   .ticket.open{transform:translateY(0)}
   .t-head{cursor:pointer;border-radius:14px 14px 0 0}
   .t-head .caret{display:block;color:var(--txt-3);font-size:12px}
-  .sheet-bg{display:block;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:49;opacity:0;
-    pointer-events:none;transition:opacity .26s}
-  .sheet-bg.show{opacity:1;pointer-events:auto}
-  main.tab-order{padding-bottom:72px}
+  /* The dimmer used to cover the menu and eat every tap, so in portrait a
+     waiter had to close the ticket to add each item and reopen it to see the
+     total. The sheet is shorter now and the menu stays live behind it. */
+  .sheet-bg{display:none}
+  .ticket{max-height:62vh}
+  main.tab-order{padding-bottom:78px}
   .mrow{grid-template-columns:1fr 1fr;gap:6px}
   .mrow .nmbtn{grid-column:1/-1}
   .mhead{display:none}
@@ -815,7 +836,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     "A second file, Empratour-backup-DATE.json, is saved beside it. Excel is for reading; that one puts the till back if the tablet is ever wiped. Keep both.":"و بيتحفظ جنبه ملف تاني اسمه Empratour-backup-DATE.json — الإكسل للقراءة، و الملف ده بيرجّع النظام بالكامل لو التابلت اتمسح. احتفظ بالاتنين.",
     "Yesterday's Excel saved":"تم حفظ إكسل أمس","Could not build the file.":"تعذّر إنشاء الملف.",
     "Summary":"ملخص","Items sold":"الأصناف المباعة","Currency":"العملة","Rate":"السعر",
-    "By":"بواسطة","Order":"الطلب","Time":"الوقت","Type":"النوع","Total":"الإجمالي","Connecting":"جارٍ الاتصال","Not connected":"غير متصل",
+    "By":"بواسطة","Order":"الطلب","Time":"الوقت","Type":"النوع","Total":"الإجمالي","Connecting":"جارٍ الاتصال","Not connected":"غير متصل","Cloud not reachable":"السحابة مش متاحة",
     "Cloud sync":"المزامنة السحابية","Sync":"المزامنة","Till server":"سيرفر الخزينة",
     "On the tablet, open this address in Chrome:":"على التابلت افتح هذا العنوان في كروم:",
     "Sync now":"زامن الآن","Status":"الحالة","Connected":"متصل","Account":"الحساب",
@@ -858,7 +879,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     "Value at selling price":"القيمة بسعر البيع","Items with a difference":"أصناف فيها فرق","Everything matched.":"كل حاجة مطابقة.","Nothing counted yet.":"لسه ما عدّيتش حاجة.",
     "No stocktake yet.":"مفيش جرد لسه.","Last stocktake":"آخر جرد","Type what is really there. Leave a box empty to skip that item.":"اكتب اللي موجود فعلاً. سيب الخانة فاضية لو مش عايز تعدّ الصنف ده.","Today's copy":"نسخة النهارده","Sent":"اتبعت","Not sent yet":"لسه ما اتبعتش",
     "The Excel report and the rescue file are attached.":"مرفق ملف الإكسل و ملف الإنقاذ.","Attach the two files from the Downloads folder.":"ارفق الملفين من مجلد التنزيلات.",
-    "Refund":"مرتجع","Refunded":"مرتجع","Edited":"معدّلة","Edited by":"عدّلها",
+    "Refund":"مرتجع","Refunded":"مرتجع","removed":"متشال","Not saved":"لم يتم الحفظ","The tablet's storage is full, so this sale could not be saved. The check is still on screen. Take a backup from Setup, then charge it again.":"مساحة التخزين في التابلت اتملت، فالفاتورة دي ما اتحفظتش. الفاتورة لسه على الشاشة. خد نسخة احتياطية من الإعدادات، و بعدين احسبها تاني.","The tablet's storage is full. Nothing is being saved — take a backup now.":"مساحة التخزين اتملت. مفيش حاجة بتتحفظ — خد نسخة احتياطية دلوقتي.","The till is open in another window":"الكاشير مفتوح في نافذة تانية","Two windows cannot take orders at the same time — the sales would overwrite each other. Close the other one, or move the till here.":"مينفعش نافذتين ياخدوا طلبات في نفس الوقت — الفواتير هتمسح بعضها. اقفل التانية، أو انقل الكاشير هنا.","Use the till here":"استخدم الكاشير هنا","this replaces":"ده هيمسح","This replaces everything on the tablet with what is in the file.":"ده هيمسح كل اللي على التابلت و يحط مكانه اللي في الملف.","You will lose":"هتفقد","orders today":"فاتورة النهارده","held checks":"فاتورة معلّقة","the open shift":"الوردية المفتوحة","Count the drawer and type what is in it.":"عد الدرج و اكتب اللي فيه.","Edited":"معدّلة","Edited by":"عدّلها",
+    "Removed after printing":"اتشال بعد الطبع","Net after edit":"الصافي بعد التعديل",
     "Back":"رجوع","Cancel":"إلغاء","Save":"حفظ","Charge":"تحصيل","Apply":"تطبيق","Add":"إضافة",
     "Cashier":"كاشير","Supervisor":"مشرف","Manager":"مدير",
     "Paid by":"الدفع بـ","Print":"طباعة","Save file":"حفظ ملف","Next order":"طلب جديد",
@@ -1234,23 +1256,49 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     return (Math.round((Number(n) || 0) * 100) / 100)
       .toLocaleString("en-EG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
+  // a minus in front of a number inside an Arabic line drifted to the far side
+  // and printed as "0.00 −". Isolating the pair keeps the sign where it belongs.
+  function neg(n) { return mi() + money(n); }
+  // an Arabic line needs the sign tied to its digits; an English one does not,
+  // and an invisible mark is one more thing an old renderer can draw as a box
+  function mi() { return LANG === "ar" ? "\u2066\u2212 " : "\u2212 "; }
   function cur() { return S.settings.currency || "EGP"; }
   function uid() { return Math.random().toString(36).slice(2, 9); }
   function dayKey(d) {
     d = d || new Date();
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   }
+  /* Dates are built by hand rather than left to toLocaleDateString, because
+     in an Arabic page the browser reordered "24 Sept 11:43" into
+     "Sept 11:43 24" and never translated the month. The \u2066..\u2069 pair
+     isolates the whole stamp so it reads left-to-right wherever it sits. */
+  var MON_EN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var MON_AR = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  var DOW_EN = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  var DOW_AR = ["الأحد","الإثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"];
+  function mon(d) { return (LANG === "ar" ? MON_AR : MON_EN)[d.getMonth()]; }
+  function dow(d) { return (LANG === "ar" ? DOW_AR : DOW_EN)[d.getDay()]; }
+  // the bidi marks are only needed on an Arabic page, and an old Android
+  // WebView can draw an unknown mark as a box — so English gets none
+  function ltr(x) { return LANG === "ar" ? "\u2066" + x + "\u2069" : x; }
+  function hm(d) {
+    return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
   function prettyDay(k) {
     var p = k.split("-"), d = new Date(+p[0], +p[1] - 1, +p[2]);
-    var label = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+    var label = dow(d) + "\u060c " + ltr(d.getDate() + " " + mon(d));
+    if (LANG !== "ar") label = dow(d) + ", " + ltr(d.getDate() + " " + mon(d));
     return k === dayKey() ? tr("Today") + " · " + label : label;
   }
-  function whenStr(iso) {
-    var d = new Date(iso);
-    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) + " " +
-           d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  function whenStr(x) {
+    var d = new Date(x);
+    // the \u200e is load-bearing: without it the clock digits are absorbed into
+    // the Arabic month's run and the stamp prints as "24 12:17 \u0633\u0628\u062a\u0645\u0628\u0631"
+    return ltr(d.getDate() + " " + mon(d) + (LANG === "ar" ? "\u200e" : "") + " " + hm(d));
   }
-  function hhmm(iso) { return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }); }
+  function hhmm(x) { return hm(new Date(x)); }
+  // the isolate marks belong on screen, never in a file
+  function plain(x) { return String(x == null ? "" : x).replace(/[\u2066-\u2069]/g, ""); }
   function byId(id) { for (var i = 0; i < S.menu.length; i++) if (S.menu[i].id === id) return S.menu[i]; return null; }
   function ingById(id) { for (var i = 0; i < S.ings.length; i++) if (S.ings[i].id === id) return S.ings[i]; return null; }
   function grpById(id) { for (var i = 0; i < S.groups.length; i++) if (S.groups[i].id === id) return S.groups[i]; return null; }
@@ -1284,6 +1332,64 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     $("mbg").addEventListener("click", function (e) { if (e.target.id === "mbg") closeModal(); });
   }
 
+  /* ============ one window only ============
+     Every write is a whole-state overwrite, so two windows of the till open
+     at once on the same tablet stamp on each other: a sale rung in one is
+     erased by the next save in the other, and both mint the same receipt
+     number. Rather than try to merge, only one window is allowed to be the
+     till. The other is frozen until the person chooses to move it. */
+  // the id lives in sessionStorage, which is per-window and survives a reload:
+  // without that a refresh looked like a second window and froze itself out
+  var TABKEY, tabDead = false;
+  var MYTAB = (function () {
+    try {
+      var v = sessionStorage.getItem("ee-tab");
+      if (!v) { v = Date.now().toString(36) + Math.random().toString(36).slice(2, 8); sessionStorage.setItem("ee-tab", v); }
+      return v;
+    } catch (e) { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  })();
+  function claimTab() {
+    try { localStorage.setItem(TABKEY, JSON.stringify({ id: MYTAB, at: Date.now() })); } catch (e) {}
+  }
+  function tabHolder() {
+    try { return JSON.parse(localStorage.getItem(TABKEY) || "null"); } catch (e) { return null; }
+  }
+  function freezeTab() {
+    if (tabDead) return;
+    tabDead = true;
+    var d = document.createElement("div");
+    d.id = "tabLock";
+    d.style.cssText = "position:fixed;inset:0;z-index:9999;background:var(--bg,#111);color:var(--fg,#fff);" +
+      "display:flex;align-items:center;justify-content:center;text-align:center;padding:24px";
+    d.innerHTML = '<div style="max-width:420px"><p style="font-size:19px;font-weight:700;margin:0 0 10px">' +
+      esc(t("The till is open in another window")) + "</p>" +
+      '<p style="opacity:.75;margin:0 0 18px;line-height:1.6">' +
+      esc(t("Two windows cannot take orders at the same time — the sales would overwrite each other. Close the other one, or move the till here.")) + "</p>" +
+      '<button class="btn primary" id="tabTake" type="button" style="min-height:48px">' +
+      esc(t("Use the till here")) + "</button></div>";
+    document.body.appendChild(d);
+    d.querySelector("#tabTake").addEventListener("click", function () { claimTab(); location.reload(); });
+  }
+  function startTabGuard() {
+    TABKEY = LS_KEY + ":tab";
+    var h = tabHolder();
+    if (h && h.id && h.id !== MYTAB && Date.now() - (h.at || 0) < 9000) { freezeTab(); return; }
+    claimTab();
+    setInterval(function () { if (!tabDead) claimTab(); }, 3000);
+    // hand the claim back when this window goes away, so the next one does not
+    // have to wait out the timeout
+    window.addEventListener("pagehide", function () {
+      if (tabDead) return;
+      var h = tabHolder();
+      if (h && h.id === MYTAB) { try { localStorage.removeItem(TABKEY); } catch (e) {} }
+    });
+    window.addEventListener("storage", function (e) {
+      if (tabDead || e.key !== TABKEY) return;
+      var n = tabHolder();
+      if (n && n.id && n.id !== MYTAB) freezeTab();
+    });
+  }
+
   /* ============ persistence ============ */
   function snapshot() {
     return { settings: S.settings, counter: S.counter, menu: S.menu, groups: S.groups, ings: S.ings,
@@ -1291,7 +1397,48 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       shift: S.shift, shifts: S.shifts, clock: S.clock, parked: S.parked, counts: S.counts,
       cleared: S.cleared, adjust: S.adjust };
   }
-  function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(snapshot())); } catch (e) {} }
+  /* Writing the state down is the single most important thing this app does.
+     It used to swallow every error, so when the tablet's storage filled up a
+     sale was taken, printed and numbered — and quietly never saved. The
+     cashier saw nothing. Now: if there is no room, old closed days are shed
+     until it fits, and if it still will not fit the till says so loudly and
+     refuses to pretend the sale is safe. */
+  var LSFULL = false;
+  function writeState(snap) {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(snap)); return true; }
+    catch (e) { return false; }
+  }
+  function shedOldest(snap) {
+    // the oldest day whose trade is already in an Excel file and a backup
+    var days = Object.keys(snap.sales || {}).sort();
+    if (days.length > 1) { delete snap.sales[days[0]]; return true; }
+    if ((snap.shifts || []).length > 30) { snap.shifts = snap.shifts.slice(0, 30); return true; }
+    if ((snap.clock || []).length > 200) { snap.clock = snap.clock.slice(0, 200); return true; }
+    if ((snap.expenses || []).length > 300) { snap.expenses = snap.expenses.slice(0, 300); return true; }
+    return false;
+  }
+  function saveLocal() {
+    var snap = snapshot();
+    if (writeState(snap)) {
+      if (LSFULL) { LSFULL = false; paintSync(); }
+      return true;
+    }
+    // no room. drop the oldest days one at a time and try again
+    var tries = 0;
+    while (tries++ < 40 && shedOldest(snap)) {
+      if (writeState(snap)) {
+        S.sales = snap.sales; S.shifts = snap.shifts; S.clock = snap.clock; S.expenses = snap.expenses;
+        if (LSFULL) { LSFULL = false; paintSync(); }
+        return true;
+      }
+    }
+    if (!LSFULL) {
+      LSFULL = true;
+      try { paintSync(); } catch (e2) {}
+      toast(t("The tablet's storage is full. Nothing is being saved — take a backup now."), true);
+    }
+    return false;
+  }
   function loadLocal() {
     try { var r = localStorage.getItem(LS_KEY); return r ? JSON.parse(r) : null; } catch (e) { return null; }
   }
@@ -1326,6 +1473,36 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (d.sales && typeof d.sales === "object") S.sales = d.sales;
     if (d.shift !== undefined) S.shift = d.shift;
   }
+  /* Restoring a dated restore point. A restore point holds ONE day, so
+     adopt() would replace the whole history with that single day and the
+     other days would be gone for good. This puts the prices, staff and
+     stock back, and swaps only that day's trade — every other day stays. */
+  function adoptBackup(d) {
+    if (!d || !d.day) { adopt(d); return; }
+    var k = d.day;
+    if (d.settings) {
+      var keep = S.settings.cloudDays;                 // never roll back the index
+      S.settings = Object.assign({}, DEFAULT_SETTINGS, d.settings);
+      if (keep) S.settings.cloudDays = keep;
+    }
+    S.settings.fx = Object.assign({ USD: 0, EUR: 0, GBP: 0 }, S.settings.fx || {});
+    if (typeof d.counter === "number") S.counter = Math.max(Number(S.counter) || 0, d.counter);
+    ["menu", "groups", "ings", "tables", "staff", "customers"].forEach(function (key) {
+      if (Array.isArray(d[key])) S[key] = d[key];
+    });
+    if (d.sales && typeof d.sales === "object" && d.sales[k]) {
+      S.sales = S.sales || {}; S.sales[k] = d.sales[k];
+    }
+    // history arrays: drop that day, put the restore point's day back
+    [["expenses", "at"], ["shifts", "closedAt"], ["counts", "at"], ["cleared", "at"], ["adjust", "at"]]
+      .forEach(function (p) {
+        var key = p[0], f = p[1];
+        var others = (S[key] || []).filter(function (x) {
+          return !x || !x[f] || dayKey(new Date(x[f])) !== k;
+        });
+        S[key] = others.concat(Array.isArray(d[key]) ? d[key] : []);
+      });
+  }
   function menuDefs() {
     return S.menu.map(function (i) {
       return { id: i.id, name: i.name, ar: i.ar || "", cat: i.cat, price: i.price, tp: Number(i.tp) || 0, track: !!i.track,
@@ -1356,16 +1533,35 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   var DBSTATE = "pending";   // pending | on | off
   var OUT = [];
   function loadOut() { try { OUT = JSON.parse(localStorage.getItem(LS_KEY + ":out") || "[]"); } catch (e) { OUT = []; } }
-  // flush() drains from the front, so trimming must drop the newest, never the
-  // next one due to be sent
-  function saveOut() { try { localStorage.setItem(LS_KEY + ":out", JSON.stringify(OUT.slice(0, 800))); } catch (e) {} }
+  /* flush() drains from the front, so the front is the next one due to be
+     sent. The cap used to keep the OLDEST 800 and throw the newest away —
+     which meant that on a long outage the sales nobody else has a copy of
+     were exactly the ones discarded. Now the newest are kept: the front of
+     the queue is sacrificed instead, and only those already mirrored in the
+     day's own records. */
+  var OUTCAP = 2000;
+  function saveOut() {
+    if (OUT.length > OUTCAP) OUT = OUT.slice(OUT.length - OUTCAP);
+    try { localStorage.setItem(LS_KEY + ":out", JSON.stringify(OUT)); }
+    catch (e) {
+      // no room for the whole queue — keep as much of the newest as fits
+      var n = Math.floor(OUT.length / 2);
+      while (n > 0) {
+        try { localStorage.setItem(LS_KEY + ":out", JSON.stringify(OUT.slice(OUT.length - n))); return; }
+        catch (e2) { n = Math.floor(n / 2); }
+      }
+    }
+  }
   function withTimeout(p, ms) {
     return Promise.race([p, new Promise(function (_, rej) {
       setTimeout(function () { rej(new Error("timeout")); }, ms || 12000);
     })]);
   }
   function queue(op) {
-    if (DBSTATE === "off") return;
+    // only throw work away when there is genuinely nowhere for it to go.
+    // if sync is configured but currently down, hold it — it goes up on
+    // reconnect, and pullFromDb must never overwrite work we discarded.
+    if (DBSTATE === "off" && !FBCFG && !LANCFG) return;
     op.qid = DEVICE + "-" + uid();
     // collapse older writes of the same document, but never the one being sent
     // right now — dropping it would make flush() discard whatever took its place
@@ -1740,11 +1936,19 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         if (S.tab === "setup") renderSetup();
       });
     }).catch(function () {
+      // the cloud is set up but we could not reach it. say so plainly — the
+      // old wording ("This device") read like nothing was expected — keep
+      // every write queued, and try again by itself.
       DBSTATE = "off"; saveOut();
-      setSync("This device", false);
+      setSync("Cloud not reachable", false);
       if (S.tab === "setup") renderSetup();
+      if (!fbRetry) fbRetry = setInterval(function () {
+        if (DBSTATE === "on" || !navigator.onLine) return;
+        clearInterval(fbRetry); fbRetry = 0; fbStart();
+      }, 60000);
     });
   }
+  var fbRetry = 0;
   /* A dated restore point. The live sync already mirrors every order as it
      happens; this is the separate thing — one document per day holding the
      prices, staff, stock levels and that day's trade, so a bad edit or a
@@ -2244,10 +2448,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var sub = S.cart.reduce(function (a, l) { return a + lineUnit(l) * l.qty; }, 0);
     var disc = 0;
     if (S.disc) disc = S.disc.kind === "%" ? sub * S.disc.value / 100 : Math.min(sub, S.disc.value);
-    var net = Math.max(0, sub - disc);
-    var srv = S.svcOn ? net * (Number(S.settings.service) || 0) / 100 : 0;
-    var vat = S.vatOn ? (net + srv) * (Number(S.settings.vat) || 0) / 100 : 0;
-    return { sub: sub, disc: disc, net: net, srv: srv, vat: vat, total: net + srv + vat };
+    // every line is rounded to the piastre HERE, and the total is the sum of
+    // those rounded lines — otherwise the printed rows do not add up to the
+    // printed total, and a tax invoice that does not foot is a real problem
+    sub = r2(sub); disc = r2(disc);
+    var net = Math.max(0, r2(sub - disc));
+    var srv = r2(S.svcOn ? net * (Number(S.settings.service) || 0) / 100 : 0);
+    var vat = r2(S.vatOn ? (net + srv) * (Number(S.settings.vat) || 0) / 100 : 0);
+    return { sub: sub, disc: disc, net: net, srv: srv, vat: vat, total: r2(net + srv + vat) };
   }
   function renderTicket() {
     var tt = totals();
@@ -2281,7 +2489,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="row"><span>' + esc(t("Subtotal")) + '</span><span class="num">' + money(tt.sub) + "</span></div>" +
       (tt.disc ? '<div class="row disc"><span>' + esc(t("Discount")) +
         (S.disc.kind === "%" ? ' <span dir="ltr">' + S.disc.value + "%</span>" : "") +
-        '</span><span class="num">− ' + money(tt.disc) + "</span></div>" : "") +
+        '</span><span class="num">' + mi() + money(tt.disc) + "</span></div>" : "") +
       (S.svcOn
         ? '<div class="row"><span>' + esc(t("Service")) + ' <span dir="ltr">' + (S.settings.service || 0) +
           '%</span></span><span class="num">' + money(tt.srv) + "</span></div>"
@@ -2342,7 +2550,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         return { name: it ? it.name : "", ar: it ? it.ar : "", qty: l.qty, amount: r2(lineUnit(l) * l.qty) };
       })
     };
-    S.cleared = [rec].concat(S.cleared || []).slice(0, 300);
+    S.cleared = [rec].concat(S.cleared || []).slice(0, 600);
     put("state/cleared", { list: S.cleared });
   }
 
@@ -2384,12 +2592,25 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (!S.cart.length) { releaseTable(); return; }
     var rec = {
       id: S.editing, table: S.table, type: S.type, note: S.note,
-      customer: S.customer, disc: S.disc, cart: S.cart.slice(),
+      customer: S.customer, disc: S.disc,
+      // a copy, so later edits to the live ticket cannot rewrite the held check
+      cart: S.cart.map(function (l) {
+        return { uid: l.uid, id: l.id, qty: l.qty, opts: (l.opts || []).slice(), note: l.note || "" };
+      }),
       svcOn: S.svcOn, vatOn: S.vatOn,
       by: S.me ? S.me.name : "", at: new Date().toISOString(),
       total: totals().total, upd: Date.now(), del: false
     };
-    S.parked = S.parked.filter(function (p) { return p.id !== rec.id; });
+    // one table can only ever have one open check: clear out any other record
+    // claiming this table, or the floor plan hides a bill and it never gets paid
+    S.parked.forEach(function (o) {
+      if (o.id !== rec.id && !o.del && o.table && o.table === rec.table) {
+        o.del = true; o.upd = Date.now(); queueParked(o);
+      }
+    });
+    S.parked = S.parked.filter(function (p) {
+      return p.id !== rec.id && !(p.table && p.table === rec.table && !p.del);
+    });
     S.parked.unshift(rec);
     queueParked(rec);
     updateBadges();
@@ -2400,6 +2621,21 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     clearTimeout(parkT);
     parkT = setTimeout(saveTableTicket, 800);
   }
+  // the debounce above meant an item added to a held check was lost if the
+  // tablet was reloaded, backgrounded or killed within that second. write it
+  // down the moment the app stops being the thing on screen.
+  function flushTable() {
+    // only ever writes. saveTableTicket() RELEASES the table when the cart is
+    // empty, so flushing at an empty moment would delete the held check.
+    if (!S.table || !S.cart.length) return;
+    clearTimeout(parkT);
+    saveTableTicket();
+  }
+  window.addEventListener("pagehide", flushTable);
+  window.addEventListener("beforeunload", flushTable);
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") flushTable();
+  });
   function releaseTable() {
     clearTimeout(parkT);
     if (!S.editing) return;
@@ -2573,7 +2809,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     toast(t("Ticket parked"));
   });
   function recall(id) {
-    var p = S.parked.filter(function (x) { return x.id === id; })[0];
+    // finish writing whatever is on screen first; the 800 ms debounce used to
+    // be retargeted at the new check and the old one kept its half-done edits
+    if (S.table && S.editing !== id) { clearTimeout(parkT); saveTableTicket(); }
+    var p = S.parked.filter(function (x) { return x.id === id && !x.del; })[0];
     if (!p) return;
     // Take a copy. Sharing the array meant a line removed from the ticket
     // stayed in the held check, and every recall handed it back to be pushed
@@ -2604,7 +2843,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         '<span class="st">' + esc(p ? t("Open") : t("Free")) + "</span>" +
         (p ? '<span class="amt num">' + money(p.total) + "</span>" : "") + "</button>";
     }).join("");
-    $("parkedList").innerHTML = S.parked.length ? S.parked.map(function (p) {
+    var living = S.parked.filter(function (p) { return !p.del; });
+    $("parkedList").innerHTML = living.length ? living.map(function (p) {
       return '<details class="ord"><summary><span class="no">' + esc(p.table || "—") + "</span>" +
         '<span class="when">' + esc(hhmm(p.at)) + " · " + esc(p.by) + "</span>" +
         '<span class="pill free">' + esc(t(p.type)) + "</span>" +
@@ -2622,7 +2862,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (!b) return;
     var p = parkedFor(b.dataset.tn);
     if (p) { recall(p.id); return; }
-    if (S.cart.length && !S.editing) { toast(t("Ticket parked")); }
+    if (S.table) { clearTimeout(parkT); saveTableTicket(); }
+    // the check that was on screen has just been put back on its own table;
+    // this is a NEW check on the tapped table, not that one moved onto it
+    S.cart = []; S.editing = null; S.note = ""; S.customer = null; S.disc = null;
     S.table = b.dataset.tn; S.type = "Dine-in";
     Array.prototype.forEach.call(document.querySelectorAll(".seg button"), function (x) {
       x.setAttribute("aria-pressed", String(x.dataset.type === "Dine-in"));
@@ -2634,8 +2877,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (r) recall(r.dataset.rec);
     if (d) {
       var gone = S.parked.filter(function (p) { return p.id === d.dataset.pdel; })[0];
-      if (gone) { gone.del = true; gone.upd = Date.now(); queueParked(gone); }
       S.parked = S.parked.filter(function (p) { return p.id !== d.dataset.pdel; });
+      if (gone) { gone.del = true; gone.upd = Date.now(); queueParked(gone); }
       renderTables(); updateBadges();
     }
   });
@@ -2852,6 +3095,24 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     S.sales[k].unshift(order);
     S.counter += 1;
 
+    // the sale is only real once it is written down. if storage refused it,
+    // leave the check exactly where it is rather than printing a receipt for
+    // a sale the tablet has already forgotten.
+    if (!saveLocal()) {
+      S.sales[k].shift(); S.counter -= 1;
+      // give the stock back too — nothing was sold
+      Object.keys(di).forEach(function (id) { var it = byId(id); if (it) it.stock -= di[id]; });
+      Object.keys(dn).forEach(function (id) {
+        var g = ingById(id); if (g) g.stock = Math.round((g.stock - dn[id]) * 1000) / 1000;
+      });
+      di = {}; dn = {};
+      modal('<div class="stack"><p class="eyebrow" style="color:var(--bad)">' + esc(t("Not saved")) + "</p>" +
+        "<p>" + esc(t("The tablet's storage is full, so this sale could not be saved. The check is still on screen. Take a backup from Setup, then charge it again.")) + "</p>" +
+        '</div><div class="acts"><button class="btn primary" id="lsfOk" type="button">' + esc(t("Done")) + "</button></div>");
+      $("lsfOk").addEventListener("click", closeModal);
+      return;
+    }
+
     var hadTable = S.table;
     releaseTable();
 
@@ -2888,18 +3149,28 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           (l.note ? '<div class="l sm"><span>' + esc(l.note) + "</span><span></span></div>" : "");
       }).join("") + "<hr>" +
       '<div class="l"><span>' + esc(t("Subtotal")) + "</span><span>" + money(o.sub) + "</span></div>" +
-      (o.disc ? '<div class="l"><span>' + esc(t("Discount")) + "</span><span>− " + money(o.disc) + "</span></div>" : "") +
+      (o.disc ? '<div class="l"><span>' + esc(t("Discount")) + "</span><span>" + mi() + money(o.disc) + "</span></div>" : "") +
       (o.svcOn === false ? '<div class="l"><span>' + esc(t("Service")) + "</span><span>" + esc(t("not charged")) + "</span></div>"
         : '<div class="l"><span>' + esc(t("Service")) + "</span><span>" + money(o.service) + "</span></div>") +
       (o.vatOn === false ? '<div class="l"><span>' + esc(t("VAT")) + "</span><span>" + esc(t("not charged")) + "</span></div>"
         : '<div class="l"><span>' + esc(t("VAT")) + "</span><span>" + money(o.vat) + "</span></div>") +
       '<div class="l big"><span>' + esc(t("Total")) + " " + esc(o.currency) + "</span><span>" + money(o.total) + "</span></div>" +
+      // on an edited check cash/card already have the refund taken off them,
+      // so add it back here — otherwise the slip shows the money leaving twice
       '<div class="l"><span>' + esc(t("Paid by")) + " " + esc(t(o.pay)) + "</span><span>" +
-        money((o.card || 0) + (o.cash || 0)) + "</span></div>" +
+        money((o.card || 0) + (o.cash || 0) + (Number(o.refund) || 0)) + "</span></div>" +
       (o.fx ? '<div class="l"><span>' + esc(t("Received")) + " " + esc(o.fx.cur) + " @ " + money(o.fx.rate) +
         "</span><span>" + esc(fxMoney(o.fx.cur, o.fx.amt)) + "</span></div>" : "") +
       (o.tip ? '<div class="l"><span>' + esc(t("Extra")) + "</span><span>" + money(o.tip) + "</span></div>" : "") +
-      (o.change ? '<div class="l"><span>' + esc(t("Change")) + "</span><span>" + money(o.change) + "</span></div>" : "");
+      (o.change ? '<div class="l"><span>' + esc(t("Change")) + "</span><span>" + money(o.change) + "</span></div>" : "") +
+      ((o.removed && o.removed.length) ? "<hr>" +
+        '<div class="l"><span>' + esc(t("Removed after printing")) + "</span><span>" + esc(o.editedBy || "") + "</span></div>" +
+        o.removed.map(function (rm) {
+          return '<div class="l sm"><span dir="auto">' + rm.qty + " × " +
+            esc(LANG === "ar" && rm.ar ? rm.ar : rm.name) + "</span><span>" + mi() + money(rm.amount) + "</span></div>";
+        }).join("") +
+        (o.refund ? '<div class="l big"><span>' + esc(t("Refunded")) + "</span><span>" + mi() + money(o.refund) + "</span></div>" +
+          '<div class="l"><span>' + esc(t("Net after edit")) + "</span><span>" + money(o.total) + "</span></div>" : "") : "");
   }
   function receiptHTML(o) {
     return '<div class="rh"><div class="n">El Empratour</div><div class="s">' +
@@ -2991,7 +3262,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var sb = $("stockBadge"); sb.hidden = !lowN; sb.textContent = lowN;
     var kn = liveOrders().length;
     var kb = $("kdsBadge"); kb.hidden = !kn; kb.textContent = kn;
-    var tb = $("tablesBadge"); tb.hidden = !S.parked.length; tb.textContent = S.parked.length;
+    var openN = openChecks().length;
+    var tb = $("tablesBadge"); tb.hidden = !openN; tb.textContent = openN;
   }
 
   /* ============ shift ============ */
@@ -3006,6 +3278,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var s = { n: 0, gross: 0, sub: 0, cash: 0, card: 0, items: 0, disc: 0, voids: 0, vat: 0, srv: 0,
               tips: 0, refunds: 0, egpIn: 0, fx: {}, noVat: 0, noSrv: 0 };
     list.forEach(function (o) {
+      // a refund is real money out of the drawer whether or not the check it
+      // came off ended up voided, so it is counted before the void is skipped
       s.refunds += (Number(o.refund) || 0);
       if (o.void) { s.voids += 1; return; }
       // money over the bill that the customer left is ordinary revenue: it goes
@@ -3061,7 +3335,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           (s.tips ? "<dt>" + esc(t("Extra kept")) + "</dt><dd>" + money(s.tips) + "</dd>" : "") +
           "<dt>" + esc(t("Discounts")) + "</dt><dd>" + money(s.disc) + "</dd>" +
           "<dt>" + esc(t("Cash out")) + "</dt><dd>" + money(xc) + "</dd>" +
-          (shiftPayOut(S.shift.no) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>− " +
+          (shiftPayOut(S.shift.no) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>" + mi() +
             money(shiftPayOut(S.shift.no)) + "</dd>" : "") +
           fxRows(s.fx).map(function (r) { return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("") +
           "<dt>" + esc(t("Voided")) + "</dt><dd>" + s.voids + "</dd>" +
@@ -3096,7 +3370,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           "<dt>" + esc(t("Cash sales")) + "</dt><dd>" + money(r.cash) + "</dd>" +
           "<dt>" + esc(t("Card sales")) + "</dt><dd>" + money(r.card) + "</dd>" +
           (r.tips ? "<dt>" + esc(t("Extra kept")) + "</dt><dd>" + money(r.tips) + "</dd>" : "") +
-          "<dt>" + esc(t("Expenses")) + "</dt><dd>− " + money(r.expenses || 0) + "</dd>" +
+          "<dt>" + esc(t("Expenses")) + "</dt><dd>" + mi() + money(r.expenses || 0) + "</dd>" +
           "<dt>" + esc(t("Net income")) + "</dt><dd>" + money(r.net == null ? r.gross : r.net) + "</dd>" +
           "<dt>" + esc(t("Expected cash")) + "</dt><dd>" + money(r.expected) + "</dd>" +
           "<dt>" + esc(t("Counted")) + "</dt><dd>" + money(r.counted) + "</dd>" +
@@ -3114,10 +3388,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
      handover it has to be charged to the shift that actually pays it out. */
   function payOut(amount, why, ref) {
     amount = r2(amount);
-    if (!amount || !S.shift) return;
+    if (!amount) return;
+    // With no shift open the cash still leaves the drawer, so it is charged to
+    // the shift that will be counted next. Skipping it left the next count
+    // short with nothing on the report to explain it.
+    var no = S.shift ? S.shift.no : (Number(S.settings.shiftNo) || 0) + 1;
     S.adjust = [{
       id: "a" + Date.now().toString(36), at: new Date().toISOString(),
-      shift: S.shift.no, amount: amount, why: why || "refund", ref: ref || "",
+      shift: no, amount: amount, why: why || "refund", ref: ref || "",
       by: S.me ? S.me.name : ""
     }].concat(S.adjust || []).slice(0, 400);
     put("state/adjust", { list: S.adjust });
@@ -3149,10 +3427,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           return '<tr><td>' + esc(t(e.cat || "Other")) + "</td>" +
             "<td>" + esc(e.note || "") + '<span class="ar">' + esc(hhmm(e.ts)) + " · " + esc(e.by || "") + "</span></td>" +
             "<td>" + esc(t(e.pay || "Cash")) + "</td>" +
-            '<td class="r num" style="color:var(--bad)">− ' + money(e.amount) + "</td>" +
+            '<td class="r num" style="color:var(--bad)">' + mi() + money(e.amount) + "</td>" +
             '<td><button class="del" type="button" data-xdel="' + e.id + '">✕</button></td></tr>';
         }).join("") +
-        '<tr><td colspan="3"><strong>' + esc(t("Total")) + '</strong></td><td class="r num" style="color:var(--bad)">− ' +
+        '<tr><td colspan="3"><strong>' + esc(t("Total")) + '</strong></td><td class="r num" style="color:var(--bad)">' + mi() +
           money(total) + "</td><td></td></tr>" +
         "</tbody></table></div>"
       : '<div class="empty">' + esc(t("No expenses yet.")) + "</div>";
@@ -3243,26 +3521,36 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         "<dt>" + esc(t("Cash sales")) + "</dt><dd>" + money(s.cash) + "</dd>" +
         "<dt>" + esc(t("Card sales")) + "</dt><dd>" + money(s.card) + "</dd>" +
         (s.tips ? "<dt>" + esc(t("Extra kept")) + "</dt><dd>" + money(s.tips) + "</dd>" : "") +
-        "<dt>" + esc(t("Cash out")) + "</dt><dd>− " + money(xc) + "</dd>" +
-        (shiftPayOut(S.shift.no) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>− " +
+        "<dt>" + esc(t("Cash out")) + "</dt><dd>" + mi() + money(xc) + "</dd>" +
+        (shiftPayOut(S.shift.no) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>" + mi() +
           money(shiftPayOut(S.shift.no)) + "</dd>" : "") +
         fxRows(s.fx).map(function (r) { return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("") +
         "<dt>" + esc(t("Net income")) + "</dt><dd>" + money(s.gross - xa) + "</dd>" +
         "<dt>" + esc(t("Expected in drawer")) + '</dt><dd class="big">' + money(expected) + "</dd></dl>" +
       '<div class="fld"><label for="counted">' + esc(t("Counted cash in drawer")) + "</label>" +
-      '<input class="big-in" id="counted" type="number" min="0" step="1" value="' + Math.round(expected) + '"></div>' +
-      '<div class="duebar"><span>' + esc(t("Difference")) + '</span><span class="num" id="diffVal">0.00</span></div></div>' +
+      // deliberately EMPTY. it used to arrive pre-filled with the expected
+      // figure rounded to the pound, which both invented a difference of a
+      // few piastres on almost every shift and let a shift be closed without
+      // anybody actually counting the drawer
+      '<input class="big-in" id="counted" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></div>' +
+      '<div class="duebar"><span>' + esc(t("Difference")) + '</span><span class="num" id="diffVal">—</span></div></div>' +
       '<div class="acts"><button class="btn" id="cancelClose" type="button">' + esc(t("Back")) + "</button>" +
       '<button class="btn primary" id="doClose" type="button">' +
       esc(oc.length ? t("Close anyway") : t("Close shift")) + "</button></div>");
+    function typed() { return String($("counted").value).trim() !== ""; }
     function upd() {
-      var c = Number($("counted").value) || 0, d = c - expected, el = $("diffVal");
+      var el = $("diffVal");
+      if (!typed()) { el.textContent = "—"; el.style.color = "var(--muted)"; return; }
+      var c = r2(Number($("counted").value) || 0), d = r2(c - expected);
       el.textContent = (d > 0 ? "+" : "") + money(d);
       el.style.color = Math.abs(d) < 0.01 ? "var(--ok)" : "var(--bad)";
     }
     $("counted").addEventListener("input", upd);
     $("cancelClose").addEventListener("click", closeModal);
-    $("doClose").addEventListener("click", function () { finishShift(s, expected, Number($("counted").value) || 0, xc, xa); });
+    $("doClose").addEventListener("click", function () {
+      if (!typed()) { toast(t("Count the drawer and type what is in it."), true); $("counted").focus(); return; }
+      finishShift(s, expected, r2(Number($("counted").value) || 0), xc, xa);
+    });
     upd();
   }
   function finishShift(s, expected, counted, xc, xa) {
@@ -3284,7 +3572,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="l"><span>' + esc(t("Orders")) + "</span><span>" + rec.n + "</span></div>" +
       '<div class="l"><span>' + esc(t("Items sold")) + "</span><span>" + rec.items + "</span></div>" +
       '<div class="l"><span>' + esc(t("Discounts")) + "</span><span>" + money(rec.disc) + "</span></div>" +
-      '<div class="l"><span>' + esc(t("Expenses")) + "</span><span>− " + money(rec.expenses) + "</span></div>" +
+      '<div class="l"><span>' + esc(t("Expenses")) + "</span><span>" + mi() + money(rec.expenses) + "</span></div>" +
       '<div class="l"><span>' + esc(t("Voided")) + "</span><span>" + rec.voids + "</span></div>" +
       '<div class="l"><span>' + esc(t("Cash sales")) + "</span><span>" + money(rec.cash) + "</span></div>" +
       '<div class="l"><span>' + esc(t("Card sales")) + "</span><span>" + money(rec.card) + "</span></div>" +
@@ -3292,8 +3580,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="l"><span>' + esc(t("Gross")) + " " + esc(cur()) + "</span><span>" + money(rec.gross) + "</span></div>" +
       '<div class="l big"><span>' + esc(t("Net income")) + " " + esc(cur()) + "</span><span>" + money(rec.net) + "</span></div><hr>" +
       '<div class="l"><span>' + esc(t("Opening float")) + "</span><span>" + money(rec.float) + "</span></div>" +
-      '<div class="l"><span>' + esc(t("Cash out")) + "</span><span>− " + money(rec.cashOut) + "</span></div>" +
-      (rec.payOut ? '<div class="l"><span>' + esc(t("Paid back out")) + "</span><span>− " + money(rec.payOut) + "</span></div>" : "") +
+      '<div class="l"><span>' + esc(t("Cash out")) + "</span><span>" + mi() + money(rec.cashOut) + "</span></div>" +
+      (rec.payOut ? '<div class="l"><span>' + esc(t("Paid back out")) + "</span><span>" + mi() + money(rec.payOut) + "</span></div>" : "") +
       fxRows(rec.fx).map(function (r) {
         return '<div class="l"><span>' + esc(r[0]) + "</span><span>" + esc(r[1]) + "</span></div>"; }).join("") +
       '<div class="l"><span>' + esc(t("Expected in drawer")) + "</span><span>" + money(rec.expected) + "</span></div>" +
@@ -3451,7 +3739,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         id: "c" + Date.now().toString(36), at: new Date().toISOString(), by: who.name,
         lines: lines, count: lines.length, units: tt.units, value: r2(tt.value), short: tt.short
       };
-      S.counts = [rec].concat(S.counts || []).slice(0, 40);
+      S.counts = [rec].concat(S.counts || []).slice(0, 400);   // a daily count needs years, not six weeks
       queueStock(di, {}, dm);               // the shelf wins; the till is corrected
       put("state/counts", { list: S.counts });
       S.counting = null;
@@ -3621,14 +3909,37 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (a) { stockSet("item", a.dataset.set, a.value); renderStock(); }
     if (b) { stockSet("ing", b.dataset.iset, b.value); renderStock(); }
     if (m) { mainSet(m.dataset.mset, m.value); renderStock(); }
-    var cf = e.target.closest("input[data-cf]"), cm = e.target.closest("input[data-cm]");
-    if ((cf || cm) && S.counting) {
-      // keep the caret where it is: only the totals and this row's gap change
-      if (cf) S.counting.f[cf.dataset.cf] = cf.value;
-      if (cm) S.counting.m[cm.dataset.cm] = cm.value;
-      renderCountSheet();
-    }
   });
+  /* The count sheet must never be rebuilt while someone is typing in it: the
+     box under the finger gets destroyed and the number they just entered is
+     lost without a word. Record on every keystroke, and repaint only the
+     totals and this one row's difference. */
+  function countInput(e) {
+    if (!S.counting) return;
+    var cf = e.target.closest("input[data-cf]"), cm = e.target.closest("input[data-cm]");
+    if (!cf && !cm) return;
+    if (cf) S.counting.f[cf.dataset.cf] = cf.value;
+    if (cm) S.counting.m[cm.dataset.cm] = cm.value;
+    var id = (cf || cm).dataset.cf || (cf || cm).dataset.cm;
+    var lines = countLines(), tt = countTotals(lines);
+    var mine = lines.filter(function (l) { return l.id === id; })[0];
+    var row = (cf || cm).closest("tr");
+    if (row && mine) {
+      var cells = row.children;
+      var gap = cells[cells.length - 1];
+      gap.textContent = mine.done ? (mine.diff > 0 ? "+" : "") + mine.diff : "—";
+      gap.style.color = (!mine.done || !mine.diff) ? "var(--txt-3)"
+        : (mine.diff < 0 ? "var(--bad)" : "var(--ok)");
+      cells[0].className = "stripe " + (!mine.done ? "" : (mine.diff < 0 ? "out" : (mine.diff > 0 ? "low" : "ok")));
+    }
+    $("stockTiles").innerHTML =
+      tile(t("Counted"), tt.done + " / " + lines.length, "") +
+      tile(t("Units"), (tt.units > 0 ? "+" : "") + tt.units, tt.units ? "warn" : "") +
+      tile(t("Value at selling price"), money(tt.value), tt.value < 0 ? "bad" : "") +
+      tile(t("Items short"), tt.short, tt.short ? "bad" : "");
+  }
+  $("stockRows").addEventListener("input", countInput);
+  $("stockRows").addEventListener("change", countInput);
 
   /* ============ sales & reports ============ */
   function renderSales() {
@@ -3692,7 +4003,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       block(t("By hour"), Object.keys(byHour).sort(function (a, b) { return a - b; })
         .map(function (h) { return [String(h).padStart(2, "0") + ":00", money(byHour[h])]; })) +
       block(t("Expenses"), xl.length
-        ? xl.map(function (e) { return [t(e.cat || "Other") + (e.note ? " · " + e.note : ""), "− " + money(e.amount)]; })
+        ? xl.map(function (e) { return [t(e.cat || "Other") + (e.note ? " · " + e.note : ""), neg(e.amount)]; })
             .concat([[t("Net income"), money(s.gross - xa)]])
         : [[t("Net income"), money(s.gross)]]) +
       // who wiped a ticket that already had items on it, and what was on it
@@ -3740,15 +4051,15 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         }).join("") +
         (o.removed || []).map(function (r) {
           return '<span class="l gone"><span dir="auto">' + r.qty + " × " +
-            esc(LANG === "ar" && r.ar ? r.ar : r.name) + '</span><span class="num">− ' + money(r.amount) + "</span></span>";
+            esc(LANG === "ar" && r.ar ? r.ar : r.name) + '</span><span class="num">' + mi() + money(r.amount) + "</span></span>";
         }).join("") +
-        (o.disc ? '<span class="l"><span>' + esc(t("Discount")) + '</span><span class="num">− ' + money(o.disc) + "</span></span>" : "") +
+        (o.disc ? '<span class="l"><span>' + esc(t("Discount")) + '</span><span class="num">' + mi() + money(o.disc) + "</span></span>" : "") +
         (o.cust ? '<span class="l"><span>' + esc(o.cust.name) + " · " + esc(o.cust.phone) + "</span><span></span></span>" : "") +
         (o.note ? '<span class="l"><span>✎ ' + esc(o.note) + "</span><span></span></span>" : "") +
         '<span class="l"><span>' + esc(t("Cashier")) + " " + esc(o.by) + "</span><span></span></span>" +
         (o.voidBy ? '<span class="l"><span>' + esc(t("Voided by")) + " " + esc(o.voidBy) + "</span><span></span></span>" : "") +
         (o.refund ? '<span class="l"><span>' + esc(t("Refunded")) + " · " + esc(t("Edited by")) + " " +
-          esc(o.editedBy || "") + '</span><span class="num">− ' + money(o.refund) + "</span></span>" : "") +
+          esc(o.editedBy || "") + '</span><span class="num">' + mi() + money(o.refund) + "</span></span>" : "") +
         '<span class="acts"><button class="btn sm" data-rp="' + esc(oid) + '" type="button">' + esc(t("Reprint")) + "</button>" +
         (o.void ? "" : '<button class="btn sm danger" data-vo="' + esc(oid) + '" type="button">' + esc(t("Void")) + "</button>") +
         "</span></div></details>";
@@ -3770,11 +4081,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var sub = o.lines.reduce(function (a, l) { return a + (Number(l.amount) || 0); }, 0);
     var d = o.discInfo, disc = 0;
     if (d) disc = d.kind === "%" ? sub * (Number(d.value) || 0) / 100 : Math.min(sub, Number(d.value) || 0);
-    var net = Math.max(0, sub - disc);
-    var srv = net * srvRate;
-    var vat = (net + srv) * vatRate;
-    o.sub = r2(sub); o.disc = r2(disc); o.service = r2(srv); o.vat = r2(vat);
-    o.total = r2(net + srv + vat);
+    sub = r2(sub); disc = r2(disc);
+    var net = Math.max(0, r2(sub - disc));
+    var srv = r2(net * srvRate);
+    var vat = r2((net + srv) * vatRate);
+    o.sub = sub; o.disc = disc; o.service = srv; o.vat = vat;
+    o.total = r2(net + srv + vat);      // the sum of the rows as printed
   }
 
   function removeFromOrder(ord, ix, qty, who) {
@@ -3811,19 +4123,25 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 
     // money back to the customer, taken from cash first, then off the card
     var back = r2(Math.max(0, before - (Number(ord.total) || 0)));
-    var fromCash = Math.min(oldCash, back);
+    // nothing is left on the check, so nothing was sold: the money the
+    // customer left over the bill goes back too, or it stays in the drawer
+    // with no sale behind it and the shift reads over at closing time
+    if (ord.void && (Number(ord.tip) || 0)) { back = r2(back + ord.tip); ord.tip = 0; }
+    // cash can only be handed back out of what this check actually put in
+    // the drawer — that is egpIn (which carries the extra), not o.cash
+    var fromCash = Math.min(Math.max(0, oldEgpIn), back);
     var fromCard = r2(back - fromCash);
-    ord.cash = r2(oldCash - fromCash);
+    ord.cash = Math.max(0, r2(oldCash - fromCash));
     ord.card = Math.max(0, r2((Number(ord.card) || 0) - fromCard));
     ord.egpIn = r2(oldEgpIn - fromCash);
     ord.refund = r2((Number(ord.refund) || 0) + back);
-    if (S.shift && ord.shift !== S.shift.no) payOut(fromCash, "refund", ord.ref);
+    if (!S.shift || ord.shift !== S.shift.no) payOut(fromCash, "refund", ord.ref);
     ord.editedBy = who.name; ord.editedAt = new Date().toISOString();
     ord.upd = Date.now();
 
     queueStock(di, dn);
     queueOrder(ord, S.salesDay);
-    renderSales(); renderItems(); updateBadges();
+    renderSales(); renderItems(); updateBadges(); renderShiftChip(); if (S.tab === "shift") renderShift();
     toast(t("Item removed") + " · " + t("Refund") + " " + money(back));
   }
 
@@ -3872,7 +4190,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         ord.voidBy = who.name;
         ord.voidAt = new Date().toISOString();
         // the cash for a voided check from an earlier shift leaves the drawer now
-        if (S.shift && ord.shift !== S.shift.no) {
+        if (!S.shift || ord.shift !== S.shift.no) {
           payOut(ord.egpIn == null ? (Number(ord.cash) || 0) : Number(ord.egpIn) || 0, "void", ord.ref);
         }
         var di = {}, dn = {};
@@ -3891,7 +4209,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         ord.upd = Date.now();
         queueStock(di, dn);
         queueOrder(ord, S.salesDay);
-        renderSales(); renderItems(); updateBadges();
+        renderSales(); renderItems(); updateBadges(); renderShiftChip(); if (S.tab === "shift") renderShift();
         toast(t("Order voided"));
       });
     }
@@ -3920,9 +4238,9 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="l"><span>' + esc(t("Expenses")) + "</span><span></span></div>" +
       (xl.length ? xl.map(function (e) {
         return '<div class="l sm"><span>' + esc(t(e.cat || "Other")) + (e.note ? " · " + esc(e.note) : "") +
-          "</span><span>− " + money(e.amount) + "</span></div>";
+          "</span><span>" + mi() + money(e.amount) + "</span></div>";
       }).join("") : '<div class="l sm"><span>—</span><span></span></div>') +
-      '<div class="l"><span>' + esc(t("Cash out")) + "</span><span>− " + money(xc) + "</span></div>" +
+      '<div class="l"><span>' + esc(t("Cash out")) + "</span><span>" + mi() + money(xc) + "</span></div>" +
       '<div class="l big"><span>' + esc(t("Net income")) + " " + esc(cur()) + "</span><span>" + money(s.gross - xa) + "</span></div>";
     modal('<div class="rcpt"><div class="rh"><div class="n">' + esc(t("Day report")) + "</div>" +
       '<div class="s">El Empratour</div></div>' + body + "</div>" +
@@ -3936,30 +4254,61 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   $("csvBtn").addEventListener("click", function () {
     var orders = S.sales[S.salesDay] || [];
     if (!orders.length) { toast(t("No orders on that day to export."), true); return; }
-    var rows = [["Order","Time","Type","Table","Cashier","Customer","Payment","Currency","Received","Rate","Void","Item","Extras","Qty","Unit","Amount","Discount","Service","VAT","Order total"]];
+    // money goes out as a plain number — a thousands separator makes Excel
+    // read the cell as text, and then nothing in the column adds up
+    function cn(n) { return r2(n); }
+    var rows = [["Order","Time","Type","Table","Cashier","Customer","Payment","Currency","Received","Rate","Void","Item","Extras","Qty","Unit","Amount","Discount","Service","VAT","Order total","Extra","Refunded"]];
+    // a check emptied by taking its last item off has no lines left. without
+    // this it would vanish from the file completely, and the money that went
+    // back to the customer would appear nowhere at all
+    function exportLines(o) {
+      if (o.lines && o.lines.length) return o.lines;
+      return (o.removed || []).map(function (rm) {
+        return { name: rm.name + " (removed)", ar: rm.ar, opts: [], qty: rm.qty,
+                 unit: rm.qty ? r2(rm.amount / rm.qty) : 0, amount: rm.amount };
+      });
+    }
     orders.slice().reverse().forEach(function (o) {
-      o.lines.forEach(function (l, ix) {
+      exportLines(o).forEach(function (l, ix) {
         rows.push([o.ref, o.time, o.type, o.table || "", o.by || "", o.cust ? o.cust.name + " " + o.cust.phone : "",
           o.pay || "", o.fx ? o.fx.cur : "EGP", o.fx && ix === 0 ? o.fx.amt : "", o.fx ? o.fx.rate : "",
           o.void ? "VOID" : "", l.name,
           (l.opts || []).map(function (x) { return x.name; }).join(" / "),
-          l.qty, money(l.unit), money(l.amount),
-          ix === 0 ? money(o.disc || 0) : "", ix === 0 ? money(o.service) : "",
-          ix === 0 ? money(o.vat) : "", ix === 0 ? money(o.total) : ""]);
+          l.qty, cn(l.unit), o.void ? 0 : cn(l.amount),
+          ix === 0 ? (o.void ? 0 : cn(o.disc || 0)) : "", ix === 0 ? (o.void ? 0 : cn(o.service)) : "",
+          ix === 0 ? (o.void ? 0 : cn(o.vat)) : "", ix === 0 ? (o.void ? 0 : cn(o.total)) : "",
+          ix === 0 ? (o.void ? 0 : cn(o.tip || 0)) : "", ix === 0 ? cn(o.refund || 0) : ""]);
       });
     });
+    // voided checks stay visible as a record but carry zero money, so
+    // "Order total" + "Extra" adds up to exactly the day's gross — the same
+    // figure the screen and the Excel workbook show
+    var sv = sums(orders);
+    rows.push([]);
+    var tot = [];
+    while (tot.length < 19) tot.push("");
+    tot[18] = "TOTALS"; tot[19] = cn(sv.gross - sv.tips); tot[20] = cn(sv.tips); tot[21] = cn(sv.refunds);
+    rows.push(tot);
+    var gl = [];
+    while (gl.length < 19) gl.push("");
+    gl[18] = "GROSS (void excluded)"; gl[19] = cn(sv.gross);
+    rows.push(gl);
     var xl2 = dayExpenses(S.salesDay);
     if (xl2.length) {
       rows.push([]);
       rows.push(["EXPENSES", "Time", "Category", "Reason", "Paid from", "By", "Amount"]);
       xl2.slice().reverse().forEach(function (e) {
-        rows.push(["", hhmm(e.ts), e.cat || "", e.note || "", e.pay || "", e.by || "", money(e.amount)]);
+        rows.push(["", hhmm(e.ts), e.cat || "", e.note || "", e.pay || "", e.by || "", cn(e.amount)]);
       });
-      rows.push(["", "", "", "", "", "TOTAL EXPENSES", money(sumExp(xl2))]);
-      rows.push(["", "", "", "", "", "NET INCOME", money(sums(orders).gross - sumExp(xl2))]);
+      rows.push(["", "", "", "", "", "TOTAL EXPENSES", cn(sumExp(xl2))]);
+      rows.push(["", "", "", "", "", "NET INCOME", cn(sv.gross - sumExp(xl2))]);
     }
     var csv = "﻿" + rows.map(function (r) {
-      return r.map(function (c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(",");
+      return r.map(function (c) {
+        if (typeof c === "number") return String(c);   // bare, so Excel sees a number
+        var s = plain(c);
+        return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(",");
     }).join("\r\n");
     offerFile("empratour-sales-" + S.salesDay + ".csv", csv);
   });
@@ -4132,7 +4481,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           askManager(t("Restore") + " · " + prettyDay(k), function () {
             DB.doc("backups/" + k).get().then(function (d) {
               if (!d.exists) { toast(t("That day is not in the cloud."), true); return; }
-              adopt(d.data()); saveLocal(); renderAll(); applyRole();
+              adoptBackup(d.data()); saveLocal(); renderAll(); applyRole();
+              // the cloud is still holding what we just undid — push the
+              // restored state up, or the next pull puts the bad data back
+              if (DB) pushAll();
               toast(t("Backup restored"));
             }).catch(function () { toast(t("Could not connect."), true); });
           });
@@ -4355,6 +4707,13 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       $("eDel").addEventListener("click", function () {
         S.menu = S.menu.filter(function (x) { return x.id !== it.id; });
         S.cart = S.cart.filter(function (l) { return l.id !== it.id; });
+    // a held check still holding this item would price it at zero on recall
+    S.parked.forEach(function (pk) {
+      if (!pk.cart) return;
+      pk.cart = pk.cart.filter(function (l) { return l.id !== it.id; });
+      pk.upd = Date.now();
+    });
+    S.parked = S.parked.filter(function (pk) { return pk.del || (pk.cart && pk.cart.length); });
         saveMenu(); closeModal();
         renderSetup(); renderCats(); renderItems(); renderTicket(); updateBadges();
         toast(nm(it) + " — " + t("removed"));
@@ -4547,13 +4906,40 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (!f) return;
     var r = new FileReader();
     r.onload = function () {
-      try {
-        adopt(JSON.parse(r.result));
-        saveLocal();
-        if (DB) pushAll();
-        renderAll(); applyRole();
-        toast(t("Backup restored"));
-      } catch (err) { toast(t("That file could not be read."), true); }
+      var d;
+      try { d = JSON.parse(r.result); } catch (err) { toast(t("That file could not be read."), true); return; }
+      // Restoring REPLACES everything on the tablet. It used to happen the
+      // instant a file was picked — no question, no PIN — so one wrong tap
+      // wiped the open shift and the day's sales. Now it says exactly what
+      // will be lost, and only a manager can go through with it.
+      var live = (S.sales[dayKey()] || []).length, held = openChecks().length;
+      var warn = [];
+      if (live) warn.push(live + " " + t("orders today"));
+      if (S.shift) warn.push(t("the open shift"));
+      if (held) warn.push(held + " " + t("held checks"));
+      var go = function () {
+        try {
+          adopt(d);
+          saveLocal();
+          if (DB) pushAll();
+          renderAll(); applyRole();
+          toast(t("Backup restored"));
+        } catch (err2) { toast(t("That file could not be read."), true); }
+      };
+      // the manager is the one most likely to tap this by mistake, so the
+      // question is asked of everybody — askManager alone would wave him
+      // straight through and take the open shift with it
+      modal('<div class="padded stack"><h3>' + esc(t("Restore")) + "</h3>" +
+        '<p style="margin:0;line-height:1.6">' + esc(t("This replaces everything on the tablet with what is in the file.")) + "</p>" +
+        (warn.length ? '<p style="margin:0;color:var(--bad);line-height:1.6">' +
+          esc(t("You will lose") + ": " + warn.join(" · ")) + "</p>" : "") +
+        '</div><div class="acts"><button class="btn" id="rsNo" type="button">' + esc(t("Cancel")) + "</button>" +
+        '<button class="btn primary danger" id="rsYes" type="button">' + esc(t("Restore")) + "</button></div>");
+      $("rsNo").addEventListener("click", closeModal);
+      $("rsYes").addEventListener("click", function () {
+        closeModal();
+        askManager(t("Restore"), go);
+      });
     };
     r.readAsText(f);
     e.target.value = "";
@@ -4567,6 +4953,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function xmlEsc(s) {
     return String(s == null ? "" : s)
       .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
+      .replace(/[\u2066-\u2069]/g, "")   // screen-only bidi marks never go in a file
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
   }
@@ -4813,8 +5200,17 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       t("VAT"), t("Total"), t("Extra")];
     var orows = [oh.map(H)];
     var firstData = 2, amtTotal = 0, totTotal = 0, tipTotal = 0;
+    // a check emptied by removing its last item keeps a row here too, built
+    // from what was taken off it, so nothing ever disappears from the book
+    function xlLines(o) {
+      if (o.lines && o.lines.length) return o.lines;
+      return (o.removed || []).map(function (rm) {
+        return { name: rm.name + " — " + t("removed"), ar: (rm.ar || rm.name) + " — " + t("removed"),
+                 opts: [], note: "", qty: rm.qty, unit: rm.qty ? r2(rm.amount / rm.qty) : 0, amount: rm.amount };
+      });
+    }
     live.concat(orders.filter(function (o) { return o.void; })).forEach(function (o) {
-      o.lines.forEach(function (l, ix) {
+      xlLines(o).forEach(function (l, ix) {
         amtTotal += o.void ? 0 : l.amount;
         if (ix === 0 && !o.void) { totTotal += o.total; tipTotal += (Number(o.tip) || 0); }
         orows.push([
@@ -5200,6 +5596,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     } catch (e) {}
     S.me = who;
 
+    startTabGuard();
     renderAll(); applyRole();
     setSync("This device", false);
     loadDirHandle().then(function (hh) {
