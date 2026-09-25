@@ -845,6 +845,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   /* ============ language ============ */
   var LANG = "en";
   var AR = {
+    "Print Arabic":"طباعة عربي",
+    "Print English":"طباعة إنجليزي",
     "Printer":"الطابعة",
     "Pair the till with the thermal printer and it prints the receipt itself \u2014 no helper app, and nothing but your own words on the paper.":"اربط الكاشير بالطابعة الحرارية و هو يطبع الإيصال بنفسه \u2014 من غير برنامج تاني، و من غير أي كلام غريب على الورق.",
     "Not paired \u2014 printing goes through the tablet":"مش مربوطة \u2014 الطباعة بتمشي من التابلت",
@@ -1407,7 +1409,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function closeModal() {
     // whatever was staged for the printer goes with the modal, or a stray
     // print later in the evening quietly reprints the last customer's invoice
-    var pa = $("printArea"); if (pa) pa.innerHTML = ""; $("modalMount").innerHTML = ""; }
+    var pa = $("printArea"); if (pa) pa.innerHTML = ""; PRINT_FILL = null;
+    $("modalMount").innerHTML = ""; }
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeModal(); });
   function modal(html, cls) {
     $("modalMount").innerHTML = '<div class="modal-bg" id="mbg"><div class="modal ' + (cls || "") +
@@ -3041,9 +3044,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
      is charged, no stock moves and no order number is used — so it must not
      look like the tax invoice that comes afterwards. It can be printed again
      as often as the table adds to it. */
-  function billBody() {
+  function billBody(when) {
     var tt = totals();
-    var when = new Date();
+    // the same bill reprinted in the other language must carry the same clock
+    when = when || new Date();
     return '<div class="l big" style="justify-content:center">' + esc(t("BILL \u2014 not a receipt")) + "</div>" +
       '<div class="l"><span>' + esc(S.table ? t("Table") + " " + S.table : t(S.type)) + "</span><span>" +
         esc(ltr(when.getDate() + " " + mon(when) + (LANG === "ar" ? "\u200e" : "") + " " + hm(when))) + "</span></div>" +
@@ -3068,7 +3072,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
   function printBill() {
     if (!S.cart.length) { toast(t("Nothing on the ticket yet."), true); return; }
-    var body = billBody();
+    var at = new Date();
+    var body = billBody(at);
     // write the held check down FIRST: it is saved on a short delay, so on a
     // table whose bill is asked for straight away there was nothing yet to
     // mark, and the flag was lost
@@ -3084,12 +3089,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     }
     modal('<div class="rcpt"><div class="rh"><div class="n">El Empratour</div><div class="s">' +
       esc(t("Restaurant & Bar \u00b7 Sherry St, Sekala")) + "</div>" + taxLine() + "</div>" + body + "</div>" +
-      '<div class="acts"><button class="btn primary" id="prBill" type="button">' + esc(t("Print")) + "</button>" +
-      '<button class="btn" id="okBill" type="button">' + esc(t("Done")) + "</button></div>");
-    $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' +
-      esc(t("Restaurant & Bar \u00b7 Sherry St, Sekala")) + "</div>" + taxLine() + "<hr>" + body +
-      '<hr><div class="c">' + esc(t("Please check the bill before paying.")) + "</div>";
-    $("prBill").addEventListener("click", function () { doPrint(); });
+      '<div class="acts">' + printPair("prBill") +
+      '<button class="btn primary" id="okBill" type="button">' + esc(t("Done")) + "</button></div>");
+    printFill(function () {
+      $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' +
+        esc(t("Restaurant & Bar \u00b7 Sherry St, Sekala")) + "</div>" + taxLine() + "<hr>" + billBody(at) +
+        '<hr><div class="c">' + esc(t("Please check the bill before paying.")) + "</div>";
+    });
+    printWire("prBill");
     $("okBill").addEventListener("click", closeModal);
     renderTables(); updateBadges();
   }
@@ -3573,15 +3580,15 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var warn = (ran && ran.length) ? '<hr><div style="color:var(--warn);font-size:12px">' + esc(t("Storage alert:")) +
       " " + ran.map(function (i) { return esc(nm(i)) + " (" + i.stock + ")"; }).join(", ") + "</div>" : "";
     modal('<div class="rcpt">' + receiptHTML(o, dup) + warn + "</div>" +
-      '<div class="acts"><button class="btn" id="prBtn" type="button">' + esc(t("Print")) + "</button>" +
+      '<div class="acts">' + printPair("prBtn") +
       '<button class="btn" id="dlBtn" type="button" hidden>' + esc(t("Save file")) + "</button>" +
       '<button class="btn primary" id="okBtn" type="button">' + esc(t("Next order")) + "</button></div>");
-    fillPrint(o, dup);
+    printFill(function () { fillPrint(o, dup); });
     $("okBtn").addEventListener("click", function () {
       closeModal();
       if (backToTables) setTab("tables");
     });
-    $("prBtn").addEventListener("click", function () { doPrint(); });
+    printWire("prBtn");
     if (window.claude && window.claude.use) {
       window.claude.use("downloads").then(function (dl) {
         var b = $("dlBtn");
@@ -3827,13 +3834,52 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
 
   /* ---- what the Print buttons call ---- */
-  function doPrint() {
-    if (!prnReady()) { window.print(); return; }       // no printer paired: as before
-    if (PRN.busy) { toast(t("The printer is still working."), true); return; }
+  /* The paper and the screen do not have to speak the same language. A waiter
+     can keep the till in Arabic all night and still hand an English couple a
+     receipt they can read. Whoever puts a slip on the screen leaves behind the
+     means to write it again, so the slip is rebuilt in the language asked for,
+     printed, and put back the way it was. */
+  var PRINT_FILL = null;
+  function printFill(fn) { PRINT_FILL = fn; fn(); }
+  function printPair(id) {
+    var ar = '<button class="btn" id="' + id + '" type="button">' + esc(t("Print Arabic")) + "</button>";
+    var en = '<button class="btn" id="' + id + 'En" type="button">' + esc(t("Print English")) + "</button>";
+    return LANG === "ar" ? ar + en : en + ar;   // the language in use stays under the same thumb
+  }
+  function printWire(id) {
+    $(id).addEventListener("click", function () { doPrint("ar"); });
+    $(id + "En").addEventListener("click", function () { doPrint("en"); });
+  }
+
+  function doPrint(lang) {
+    var back = null;
+    if (lang && lang !== LANG && PRINT_FILL) {
+      var was = LANG;
+      LANG = lang;
+      try { PRINT_FILL(); }
+      catch (e) { LANG = was; try { PRINT_FILL(); } catch (e2) {} lang = null; }
+      if (lang) back = function () { LANG = was; try { PRINT_FILL(); } catch (e) {} };
+    }
+    if (!prnReady()) {                                 // no printer paired: as before
+      // the tablet's own print takes a picture of the page whenever it gets
+      // round to it, so the other language has to stay up until it is done
+      if (back) {
+        var done = function () {
+          window.removeEventListener("afterprint", done);
+          var f = back; back = null; if (f) f();
+        };
+        window.addEventListener("afterprint", done);
+        setTimeout(done, 20000);
+      }
+      window.print();
+      return;
+    }
+    if (PRN.busy) { toast(t("The printer is still working."), true); if (back) back(); return; }
     PRN.busy = true;
     var job;
     try { job = prnJob(prnCanvas()); }
-    catch (e) { PRN.busy = false; window.print(); return; }
+    catch (e) { PRN.busy = false; if (back) back(); window.print(); return; }
+    if (back) back();                     // the picture is taken; put the screen back
     prnSend(job).then(function () {
       PRN.busy = false; toast(t("Printed"));
     }).catch(function () {
