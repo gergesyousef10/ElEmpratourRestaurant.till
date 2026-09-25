@@ -249,6 +249,9 @@ td .ar,td strong[dir="auto"],.mrow .nmbtn small{display:block;unicode-bidi:isola
 .tbl .st{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt-3)}
 .tbl .amt{font-family:var(--mono);font-size:15px;color:var(--gold-lt)}
 .tbl.busy{border-color:var(--gold);background:var(--gold-dim)}
+/* the bill is on the table and the customer is reaching for his wallet */
+.tbl.billed{border-color:var(--info);background:var(--info-dim)}
+.tbl.billed .st{color:var(--info);font-weight:700}
 .tbl:hover{border-color:var(--gold)}
 
 /* ---------- kitchen ---------- */
@@ -427,7 +430,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 [dir="rtl"] .rcpt .rh .s,[dir="rtl"] .lock h2,[dir="rtl"] .brand h1,[dir="rtl"] .t-head .ttl,
 [dir="rtl"] .rcpt .rh .n{letter-spacing:0;text-transform:none}
 [dir="rtl"] .brand h1{font-size:21px}
-[dir="rtl"] .num,[dir="rtl"] input[type="number"]{direction:ltr;unicode-bidi:plaintext}
+[dir="rtl"] .num,[dir="rtl"] input.big-in,[dir="rtl"] input.cnt-in,[dir="rtl"] input[inputmode]{direction:ltr;unicode-bidi:plaintext}
 /* A cell that flips to LTR so its digits read correctly also flips what "end"
    means, so it drifted to the physical right while its Arabic header stayed on
    the left. Pin the pair to the same side. */
@@ -502,14 +505,39 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
+/* ---------- the order screen, split in two ----------
+   The kitchen and the bar are two different jobs. Side by side on a wide
+   screen, stacked on a narrow one, each with its own scroll so a long drinks
+   list never pushes the food off the bottom. */
+.split{display:grid;gap:12px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}
+.halfhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--gold-lt);position:sticky;top:0;background:var(--bg);padding:4px 0;z-index:1}
+.halfhead .n{font-family:var(--mono);color:var(--txt-3);letter-spacing:0}
+.half{min-width:0}
+.half .items{max-height:calc(100vh - var(--hdr,110px) - 150px);overflow-y:auto;overscroll-behavior:contain;
+  padding-inline-end:2px}
+.half.off{display:none}
+@media (max-width:1100px){
+  .split{grid-template-columns:minmax(0,1fr);gap:16px}
+  .half .items{max-height:none;overflow:visible}
+}
+
 /* ---------- print ---------- */
 #printArea{display:none}
 @media print{
   .app,.toast,.modal-bg,.sheet-bg,.lock{display:none!important}
   body{background:#fff;color:#000}
-  #printArea{display:block;font-family:var(--mono);font-size:12px;padding:8px;max-width:280px}
+  /* an 80mm thermal head prints about 72mm, and a 58mm one about 48mm. Keep
+     inside the narrower of the two so nothing rides the edge on either. */
+  @page{size:auto;margin:3mm}
+  #printArea{display:block;font-family:var(--mono);font-size:12px;padding:0;
+    max-width:70mm;margin:0 auto}
   #printArea .c{text-align:center}
-  #printArea .l{display:flex;justify-content:space-between;gap:10px}
+  /* the label may wrap, but its amount must never be pushed onto its own line */
+  #printArea .l{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+  #printArea .l > span:first-child{min-width:0;overflow-wrap:anywhere}
+  #printArea .l > span:last-child{flex:none;white-space:nowrap}
   #printArea .l.sm{padding-inline-start:12px;font-size:11px}
   #printArea hr{border:0;border-top:1px dashed #999;margin:8px 0}
 }
@@ -555,7 +583,16 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         <div>
           <input class="search" id="search" type="search" placeholder="Search the menu…" data-tph="Search the menu…" aria-label="Search">
           <div class="cats" id="cats"></div>
-          <div class="items" id="items"></div>
+          <div class="split" id="menuSplit">
+            <div class="half" id="halfKitchen">
+              <p class="halfhead"><span data-t="Kitchen">Kitchen</span><span class="n" id="nKitchen"></span></p>
+              <div class="items" id="items"></div>
+            </div>
+            <div class="half" id="halfBar">
+              <p class="halfhead"><span data-t="Drinks &amp; bar">Drinks &amp; bar</span><span class="n" id="nBar"></span></p>
+              <div class="items" id="itemsBar"></div>
+            </div>
+          </div>
         </div>
 
         <aside class="panel ticket" id="ticket">
@@ -577,6 +614,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
               <button type="button" id="discBtn" data-t="Discount">Discount</button>
               <button type="button" id="noteBtn" data-t="Note">Note</button>
               <button type="button" id="parkBtn" data-t="Park">Park</button>
+              <button type="button" id="billBtn" data-t="Bill">Bill</button>
             </div>
             <div class="hint" id="ticketMeta"></div>
           </div>
@@ -690,14 +728,16 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         <div class="grid2 padded">
           <div class="fld"><label for="setCur" data-t="Currency">Currency</label><input id="setCur"></div>
           <div class="fld"><label for="setTax" data-t="Tax reg. no.">Tax reg. no.</label><input id="setTax" inputmode="numeric"></div>
-          <div class="fld"><label for="setSrv" data-t="Service %">Service %</label><input id="setSrv" type="number" min="0" step="0.5"></div>
-          <div class="fld"><label for="setVat" data-t="VAT %">VAT %</label><input id="setVat" type="number" min="0" step="0.5"></div>
-          <div class="fld"><label for="setLow" data-t="Default low-stock level">Default low-stock level</label><input id="setLow" type="number" min="0" step="1"></div>
-          <div class="fld"><label for="setDisc" data-t="Discount needing manager %">Discount needing manager %</label><input id="setDisc" type="number" min="0" max="100" step="1"></div>
-          <div class="fld"><label for="setPts" data-t="EGP per loyalty point">EGP per loyalty point</label><input id="setPts" type="number" min="0" step="1"></div>
-          <div class="fld"><label for="fxUSD" data-t="US dollar rate">US dollar rate</label><input id="fxUSD" type="number" min="0" step="0.01"></div>
-          <div class="fld"><label for="fxEUR" data-t="Euro rate">Euro rate</label><input id="fxEUR" type="number" min="0" step="0.01"></div>
-          <div class="fld"><label for="fxGBP" data-t="Pound rate">Pound rate</label><input id="fxGBP" type="number" min="0" step="0.01"></div>
+          <div class="fld"><label for="setSrv" data-t="Service %">Service %</label><input id="setSrv" type="text" inputmode="decimal" min="0" step="0.5"></div>
+          <div class="fld"><label for="setVat" data-t="VAT %">VAT %</label><input id="setVat" type="text" inputmode="decimal" min="0" step="0.5"></div>
+          <div class="fld"><label for="setLow" data-t="Default low-stock level">Default low-stock level</label><input id="setLow" type="text" inputmode="decimal" min="0" step="1"></div>
+          <div class="fld" style="grid-column:1/-1"><p class="hint" id="taxWarn" hidden
+            style="margin:0;color:var(--warn)" data-t="No tax registration number is set, so receipts print without one.">No tax registration number is set, so receipts print without one.</p></div>
+          <div class="fld"><label for="setDisc" data-t="Discount needing manager %">Discount needing manager %</label><input id="setDisc" type="text" inputmode="decimal" min="0" max="100" step="1"></div>
+          <div class="fld"><label for="setPts" data-t="EGP per loyalty point">EGP per loyalty point</label><input id="setPts" type="text" inputmode="decimal" min="0" step="1"></div>
+          <div class="fld"><label for="fxUSD" data-t="US dollar rate">US dollar rate</label><input id="fxUSD" type="text" inputmode="decimal" min="0" step="0.01"></div>
+          <div class="fld"><label for="fxEUR" data-t="Euro rate">Euro rate</label><input id="fxEUR" type="text" inputmode="decimal" min="0" step="0.01"></div>
+          <div class="fld"><label for="fxGBP" data-t="Pound rate">Pound rate</label><input id="fxGBP" type="text" inputmode="decimal" min="0" step="0.01"></div>
         </div>
       </div>
       <p class="hint" style="margin:-8px 0 18px" data-t="fxHint">Rates are how many EGP one unit is worth today. Leave a rate at 0 and that currency stays off the payment screen.</p>
@@ -797,6 +837,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   var CATS = ["Appetizers","Soup","Salad","Sandwich","Pasta","Pizza","Chicken","Beef","Seafood",
     "Desserts","Soft Drinks","Hot Drinks","Coffee","Iced Coffee","Fresh Juice","Milk Shake",
     "Mocktails","Beer","Spirits","Cocktails","Wine","Shisha"];
+  /* The order screen is split in two: what the bar makes, and what the kitchen
+     makes. Anything not listed here counts as kitchen, so a new category the
+     owner invents lands on the food side rather than vanishing. */
+  var BAR_CATS = ["Soft Drinks","Hot Drinks","Coffee","Iced Coffee","Fresh Juice","Milk Shake",
+    "Mocktails","Beer","Spirits","Cocktails","Wine","Shisha"];
+  function isBar(i) { return BAR_CATS.indexOf(i && i.cat) >= 0; }
 
   /* ============ language ============ */
   var LANG = "en";
@@ -879,7 +925,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     "Value at selling price":"القيمة بسعر البيع","Items with a difference":"أصناف فيها فرق","Everything matched.":"كل حاجة مطابقة.","Nothing counted yet.":"لسه ما عدّيتش حاجة.",
     "No stocktake yet.":"مفيش جرد لسه.","Last stocktake":"آخر جرد","Type what is really there. Leave a box empty to skip that item.":"اكتب اللي موجود فعلاً. سيب الخانة فاضية لو مش عايز تعدّ الصنف ده.","Today's copy":"نسخة النهارده","Sent":"اتبعت","Not sent yet":"لسه ما اتبعتش",
     "The Excel report and the rescue file are attached.":"مرفق ملف الإكسل و ملف الإنقاذ.","Attach the two files from the Downloads folder.":"ارفق الملفين من مجلد التنزيلات.",
-    "Refund":"مرتجع","Refunded":"مرتجع","removed":"متشال","Not saved":"لم يتم الحفظ","The tablet's storage is full, so this sale could not be saved. The check is still on screen. Take a backup from Setup, then charge it again.":"مساحة التخزين في التابلت اتملت، فالفاتورة دي ما اتحفظتش. الفاتورة لسه على الشاشة. خد نسخة احتياطية من الإعدادات، و بعدين احسبها تاني.","The tablet's storage is full. Nothing is being saved — take a backup now.":"مساحة التخزين اتملت. مفيش حاجة بتتحفظ — خد نسخة احتياطية دلوقتي.","The till is open in another window":"الكاشير مفتوح في نافذة تانية","Two windows cannot take orders at the same time — the sales would overwrite each other. Close the other one, or move the till here.":"مينفعش نافذتين ياخدوا طلبات في نفس الوقت — الفواتير هتمسح بعضها. اقفل التانية، أو انقل الكاشير هنا.","Use the till here":"استخدم الكاشير هنا","this replaces":"ده هيمسح","This replaces everything on the tablet with what is in the file.":"ده هيمسح كل اللي على التابلت و يحط مكانه اللي في الملف.","You will lose":"هتفقد","orders today":"فاتورة النهارده","held checks":"فاتورة معلّقة","the open shift":"الوردية المفتوحة","Count the drawer and type what is in it.":"عد الدرج و اكتب اللي فيه.","Edited":"معدّلة","Edited by":"عدّلها",
+    "Refund":"مرتجع","Refunded":"مرتجع","removed":"متشال","Not saved":"لم يتم الحفظ","The tablet's storage is full, so this sale could not be saved. The check is still on screen. Take a backup from Setup, then charge it again.":"مساحة التخزين في التابلت اتملت، فالفاتورة دي ما اتحفظتش. الفاتورة لسه على الشاشة. خد نسخة احتياطية من الإعدادات، و بعدين احسبها تاني.","The tablet's storage is full. Nothing is being saved — take a backup now.":"مساحة التخزين اتملت. مفيش حاجة بتتحفظ — خد نسخة احتياطية دلوقتي.","The till is open in another window":"الكاشير مفتوح في نافذة تانية","Two windows cannot take orders at the same time — the sales would overwrite each other. Close the other one, or move the till here.":"مينفعش نافذتين ياخدوا طلبات في نفس الوقت — الفواتير هتمسح بعضها. اقفل التانية، أو انقل الكاشير هنا.","Use the till here":"استخدم الكاشير هنا","this replaces":"ده هيمسح","A new version is ready. It will install when the till is idle.":"فيه نسخة جديدة جاهزة. هتتركب لما الكاشير يبقى فاضي.","outside a shift":"خارج الوردية","Month report":"تقرير الشهر","Day by day":"يوم بيوم","Shifts":"الورديات","Days traded":"أيام الشغل","Average day":"متوسط اليوم","Busiest day":"أعلى يوم","Quietest day":"أقل يوم","Day":"اليوم","days":"يوم","This month":"الشهر ده","Last month sent":"آخر شهر اتبعت","Send this month":"ابعت الشهر ده","Save this month now":"احفظ الشهر ده","Last month":"الشهر اللي فات","Last month's Excel saved":"ملف إكسل الشهر اللي فات اتحفظ","One workbook for the whole month: every day in a row, what sold, the expenses and every shift. It is saved and emailed by itself on the last day of the month.":"ملف واحد للشهر كله: كل يوم في صف، و الأصناف اللي اتباعت، و المصروفات، و كل الورديات. بيتحفظ و يتبعت لوحده أول يوم في الشهر الجديد.","Print bill":"طباعة الشيك","Bill":"الشيك","BILL \u2014 not a receipt":"شيك \u2014 ليس إيصالاً","Please check the bill before paying.":"برجاء مراجعة الشيك قبل الدفع.","Nothing on the ticket yet.":"مفيش حاجة على الفاتورة لسه.","Bill printed":"الشيك اتطبع","Kitchen":"المطبخ","Drinks & bar":"المشروبات و البار","No tax registration number is set, so receipts print without one.":"مفيش رقم تسجيل ضريبي، فالإيصالات بتطبع من غيره.","DUPLICATE \u2014 reprint":"صورة طبق الأصل \u2014 إعادة طباعة","Show all":"اعرض الكل","still open":"لسه مفتوحة","Yes":"نعم","VOIDED — NOT A VALID RECEIPT":"ملغاة — ليست إيصالاً صالحاً","Voided by":"ألغاها","You do not have permission for that.":"مالكش صلاحية للحاجة دي.","Only a manager can do that.":"المدير بس هو اللي يقدر يعمل ده.","Too many wrong tries. Wait a moment.":"محاولات غلط كتير. استنى شوية.","Type how much, as a number above zero.":"اكتب المبلغ، رقم أكبر من صفر.","That amount looks wrong.":"المبلغ ده شكله غلط.","Another table already has that name.":"فيه طاولة تانية بنفس الاسم.","This replaces everything on the tablet with what is in the file.":"ده هيمسح كل اللي على التابلت و يحط مكانه اللي في الملف.","You will lose":"هتفقد","orders today":"فاتورة النهارده","held checks":"فاتورة معلّقة","the open shift":"الوردية المفتوحة","Count the drawer and type what is in it.":"عد الدرج و اكتب اللي فيه.","Edited":"معدّلة","Edited by":"عدّلها",
     "Removed after printing":"اتشال بعد الطبع","Net after edit":"الصافي بعد التعديل",
     "Back":"رجوع","Cancel":"إلغاء","Save":"حفظ","Charge":"تحصيل","Apply":"تطبيق","Add":"إضافة",
     "Cashier":"كاشير","Supervisor":"مشرف","Manager":"مدير",
@@ -1221,7 +1267,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   var FXC = ["USD", "EUR", "GBP"];
   var FX_SYM = { USD: "$", EUR: "€", GBP: "£", EGP: "" };
   var DEFAULT_SETTINGS = { currency: "EGP", service: 0, vat: 14, low: 5, shiftNo: 0,
-    discAuth: 15, ptsPer: 50, fx: { USD: 0, EUR: 0, GBP: 0 },
+    discAuth: 15, ptsPer: 50, fx: { USD: 0, EUR: 0, GBP: 0 }, taxNo: "", keepDays: 40,
     place: "El Empratour Restaurant & Bar" };
   function fxRate(c) { return Number((S.settings.fx || {})[c]) || 0; }
   function fxList() { return FXC.filter(function (c) { return fxRate(c) > 0; }); }
@@ -1258,10 +1304,18 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
   // a minus in front of a number inside an Arabic line drifted to the far side
   // and printed as "0.00 −". Isolating the pair keeps the sign where it belongs.
-  function neg(n) { return mi() + money(n); }
+  function neg(n) { return minusSign() + money(n); }
+  // a figure that may be either way: "-9,560.00" printed as "9,560.00-" in an
+  // Arabic report, so a shortage read as a surplus with a stray dash
+  function sgn(n, asMoney) {
+    n = Number(n) || 0;
+    var v = asMoney ? money(Math.abs(n)) : String(Math.abs(n));
+    var body = (n < 0 ? "\u2212" : (n > 0 ? "+" : "")) + v;
+    return LANG === "ar" ? "\u2066" + body + "\u2069" : body;
+  }
   // an Arabic line needs the sign tied to its digits; an English one does not,
   // and an invisible mark is one more thing an old renderer can draw as a box
-  function mi() { return LANG === "ar" ? "\u2066\u2212 " : "\u2212 "; }
+  function minusSign() { return LANG === "ar" ? "\u2066\u2212 " : "\u2212 "; }
   function cur() { return S.settings.currency || "EGP"; }
   function uid() { return Math.random().toString(36).slice(2, 9); }
   function dayKey(d) {
@@ -1299,8 +1353,18 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function hhmm(x) { return hm(new Date(x)); }
   // the isolate marks belong on screen, never in a file
   function plain(x) { return String(x == null ? "" : x).replace(/[\u2066-\u2069]/g, ""); }
-  function byId(id) { for (var i = 0; i < S.menu.length; i++) if (S.menu[i].id === id) return S.menu[i]; return null; }
-  function ingById(id) { for (var i = 0; i < S.ings.length; i++) if (S.ings[i].id === id) return S.ings[i]; return null; }
+  /* byId ran on every line of every order on every render of the Sales tab —
+     a linear walk of 210 items, hundreds of thousands of comparisons. Indexed. */
+  var MENU_IX = null, ING_IX = null;
+  function dropIx() { MENU_IX = null; ING_IX = null; }
+  function byId(id) {
+    if (!MENU_IX) { MENU_IX = {}; for (var j = 0; j < S.menu.length; j++) MENU_IX[S.menu[j].id] = S.menu[j]; }
+    return MENU_IX[id] || null;
+  }
+  function ingById(id) {
+    if (!ING_IX) { ING_IX = {}; for (var j = 0; j < S.ings.length; j++) ING_IX[S.ings[j].id] = S.ings[j]; }
+    return ING_IX[id] || null;
+  }
   function grpById(id) { for (var i = 0; i < S.groups.length; i++) if (S.groups[i].id === id) return S.groups[i]; return null; }
   function nm(i) { return (LANG === "ar" && i && i.ar) ? i.ar : (i ? i.name : ""); }
   function nm2(i) { return (LANG === "ar" && i && i.ar) ? i.name : (i ? (i.ar || "") : ""); }
@@ -1324,7 +1388,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     clearTimeout(toastT);
     toastT = setTimeout(function () { el.className = "toast" + (bad ? " bad" : ""); }, 2800);
   }
-  function closeModal() { $("modalMount").innerHTML = ""; }
+  function closeModal() {
+    // whatever was staged for the printer goes with the modal, or a stray
+    // print later in the evening quietly reprints the last customer's invoice
+    var pa = $("printArea"); if (pa) pa.innerHTML = ""; $("modalMount").innerHTML = ""; }
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeModal(); });
   function modal(html, cls) {
     $("modalMount").innerHTML = '<div class="modal-bg" id="mbg"><div class="modal ' + (cls || "") +
@@ -1408,6 +1475,29 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     try { localStorage.setItem(LS_KEY, JSON.stringify(snap)); return true; }
     catch (e) { return false; }
   }
+  /* A busy restaurant writes ~420 KB of orders a day, and the browser gives
+     about 5 MB. Left alone the till would hit the wall around day twelve and
+     then fight for room on every sale. So old days are let go on purpose,
+     early and cheaply, and only once their Excel file and backup exist. */
+  function trimOldDays() {
+    var keep = Math.max(7, Number(S.settings.keepDays) || 40);
+    var done = S.settings.xlsDone || {};
+    var days = Object.keys(S.sales).sort();
+    var today = dayKey();
+    var dropped = 0;
+    while (days.length > keep) {
+      var k = days[0];
+      if (k >= today) break;
+      if (!done[k]) break;             // never drop a day that was never saved
+      delete S.sales[k]; days.shift(); dropped += 1;
+    }
+    if (dropped) {
+      S.expenses = (S.expenses || []).filter(function (e) { return !e.ts || S.sales[dayKey(new Date(e.ts))] || dayKey(new Date(e.ts)) >= days[0]; });
+      S.shifts = (S.shifts || []).slice(0, 200);
+      S.clock = (S.clock || []).slice(0, 400);
+    }
+    return dropped;
+  }
   function shedOldest(snap) {
     // the oldest day whose trade is already in an Excel file and a backup
     var days = Object.keys(snap.sales || {}).sort();
@@ -1417,7 +1507,20 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if ((snap.expenses || []).length > 300) { snap.expenses = snap.expenses.slice(0, 300); return true; }
     return false;
   }
+  /* Writing the whole state is a ~200 ms blocking operation once a restaurant
+     has a few weeks of trade in it. Taking one payment used to do it FOUR
+     times — queueStock, queueOrder, saveConfig and the sale itself — which
+     froze the tablet for over a second and a half on every single order.
+     Now the writes coalesce: ask as often as you like, it happens once. */
+  var saveT = 0, savePending = false;
+  function saveSoon() {
+    savePending = true;
+    if (saveT) return;
+    saveT = setTimeout(function () { saveT = 0; if (savePending) saveLocal(); }, 250);
+  }
+  function saveFlush() { if (saveT) { clearTimeout(saveT); saveT = 0; } if (savePending) saveLocal(); }
   function saveLocal() {
+    savePending = false;
     var snap = snapshot();
     if (writeState(snap)) {
       if (LSFULL) { LSFULL = false; paintSync(); }
@@ -1439,6 +1542,24 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     }
     return false;
   }
+  /* The check being rung up right now. Any reload — a crash, an update, a
+     stray swipe — used to throw it away silently, and the waiter had to ring
+     the whole table again. Its own small key, written on a short debounce. */
+  var draftT = 0;
+  function draftNow() {
+    try {
+      if (!S.cart || !S.cart.length) { localStorage.removeItem(LS_KEY + ":draft"); return; }
+      localStorage.setItem(LS_KEY + ":draft", JSON.stringify({
+        cart: S.cart, table: S.table, note: S.note, type: S.type, disc: S.disc,
+        svcOn: S.svcOn, vatOn: S.vatOn, editing: S.editing, cust: S.customer, at: Date.now()
+      }));
+    } catch (e) {}
+  }
+  function saveDraft() { clearTimeout(draftT); draftT = setTimeout(draftNow, 400); }
+  function loadDraft() {
+    try { return JSON.parse(localStorage.getItem(LS_KEY + ":draft") || "null"); }
+    catch (e) { return null; }
+  }
   function loadLocal() {
     try { var r = localStorage.getItem(LS_KEY); return r ? JSON.parse(r) : null; } catch (e) { return null; }
   }
@@ -1454,6 +1575,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     S.settings.splitStock = 1;
   }
   function adopt(d) {
+    dropIx();
     if (!d) return;
     if (d.settings) S.settings = Object.assign({}, DEFAULT_SETTINGS, d.settings);
     S.settings.fx = Object.assign({ USD: 0, EUR: 0, GBP: 0 }, S.settings.fx || {});
@@ -1472,12 +1594,23 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     });
     if (d.sales && typeof d.sales === "object") S.sales = d.sales;
     if (d.shift !== undefined) S.shift = d.shift;
+    // bring the half-rung check back, but only if it is from today: a draft
+    // from last week reappearing on the screen would be worse than losing it
+    var dr = d.draft || loadDraft();
+    if (dr && dr.cart && dr.cart.length && Date.now() - (dr.at || 0) < 18 * 3600000) {
+      S.cart = cleanCart(dr.cart);
+      S.table = dr.table || ""; S.note = dr.note || ""; S.type = dr.type || "Dine-in";
+      S.disc = dr.disc || null; S.editing = dr.editing || null;
+      S.svcOn = dr.svcOn !== false; S.vatOn = dr.vatOn !== false;
+      S.customer = dr.cust || null;
+    }
   }
   /* Restoring a dated restore point. A restore point holds ONE day, so
      adopt() would replace the whole history with that single day and the
      other days would be gone for good. This puts the prices, staff and
      stock back, and swaps only that day's trade — every other day stays. */
   function adoptBackup(d) {
+    dropIx();
     if (!d || !d.day) { adopt(d); return; }
     var k = d.day;
     if (d.settings) {
@@ -1571,7 +1704,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     OUT.push(op);
     saveOut(); paintSync(); flush();
   }
-  function put(path, data) { saveLocal(); queue({ t: "doc", path: path, data: data }); }
+  function put(path, data) { saveSoon(); queue({ t: "doc", path: path, data: data }); }
 
   function mergeBy(a, b, key, stamp) {
     var map = {}, order = [];
@@ -1739,13 +1872,13 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (kind === "item") {
       var it = byId(id);
       if (!it) return;
-      var v = Math.max(0, Math.round(Number(value) || 0)), d = v - (Number(it.stock) || 0);
+      var v = Math.max(0, Math.round(num(value, 1e6))), d = v - (Number(it.stock) || 0);
       it.stock = v;
       queueStock(d ? (function () { var o = {}; o[id] = d; return o; })() : {}, {});
     } else {
       var g = ingById(id);
       if (!g) return;
-      var gv = Math.max(0, Math.round((Number(value) || 0) * 1000) / 1000), gd = Math.round((gv - (Number(g.stock) || 0)) * 1000) / 1000;
+      var gv = Math.max(0, Math.round(num(value, 1e6) * 1000) / 1000), gd = Math.round((gv - (Number(g.stock) || 0)) * 1000) / 1000;
       g.stock = gv;
       queueStock({}, gd ? (function () { var o = {}; o[id] = gd; return o; })() : {});
     }
@@ -1762,7 +1895,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function moveToFridge(id, qty) {
     var it = byId(id);
     if (!it) return 0;
-    var q = Math.max(0, Math.min(Number(it.main) || 0, Math.round(Number(qty) || 0)));
+    var q = Math.max(0, Math.min(Number(it.main) || 0, Math.round(num(qty, 1e6))));
     if (!q) return 0;
     it.main = (Number(it.main) || 0) - q;
     it.stock = (Number(it.stock) || 0) + q;
@@ -1776,7 +1909,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       return i.track && (Number(i.main) || 0) > 0 && stockState(i) !== "ok";
     });
   }
-  function queueOrder(order, day) { saveLocal(); queue({ t: "order", day: day, order: order }); }
+  function queueOrder(order, day) { saveSoon(); queue({ t: "order", day: day, order: order }); }
   function queueParked(rec) { saveLocal(); queue({ t: "parked", rec: rec }); }
   function queueShift() {
     if (S.shift) S.shift.upd = Date.now();
@@ -2033,10 +2166,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       if (menuDoc.exists) {
         var m = menuDoc.data();
         if (Array.isArray(m.items) && m.items.length) {
-          S.menu = m.items.map(function (d) { return Object.assign({ stock: 0, recipe: [] }, d); });
+          S.menu = m.items.map(function (d) { return Object.assign({ stock: 0, recipe: [] }, d); }); dropIx();
         }
         if (Array.isArray(m.groups)) S.groups = m.groups;
         if (Array.isArray(m.ings) && m.ings.length) {
+          dropIx();
           S.ings = m.ings.map(function (d) {
             var old = ingById(d.id);
             return Object.assign({ stock: old ? old.stock : 0 }, d);
@@ -2176,6 +2310,21 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function can(area) { return !!S.me && (ROLES[S.me.role] || 0) >= (TAB_LEVEL[area] || 3); }
   function isMgr() { return !!S.me && S.me.role === "manager"; }
 
+  /* Hiding a tab hides nothing: every control on the Setup and Stock screens
+     is static markup whose listener was bound at load, so a cashier who
+     reaches the element still fires the handler. These are the real gate —
+     called FIRST inside every handler that a cashier must not run. */
+  function needs(area) {
+    if (can(area)) return true;
+    toast(t("You do not have permission for that."), true);
+    return false;
+  }
+  function needsMgr() {
+    if (isMgr()) return true;
+    toast(t("Only a manager can do that."), true);
+    return false;
+  }
+
   function applyRole() {
     // "kitchen" stays in TABS so nothing that references it breaks, but the
     // screen is retired and its tab never shows
@@ -2219,20 +2368,42 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function lockNow() {
     S.me = null;
     try { localStorage.removeItem(LS_KEY + ":session"); } catch (e) {}
+    // the rendered screens stay in the DOM behind the lock, so the next person
+    // to log in used to inherit the manager's sales list and staff PINs, live
+    // buttons and all. Empty them.
+    ["orderList", "staffRows", "menuRows", "ingRows", "stockRows", "salesTiles",
+     "itemsRows", "expRows", "shiftHist"].forEach(function (id) {
+      var el = $(id); if (el) el.innerHTML = "";
+    });
+    var mm = $("modalMount"); if (mm) mm.innerHTML = "";
     applyRole(); showLock(true);
   }
   function paintDots() {
     var d = $("dots").children;
     for (var i = 0; i < d.length; i++) d[i].className = i < pin.length ? "on" : "";
   }
+  /* Four digits is ten thousand guesses. Unlimited tries at three a second is
+     under an hour, so wrong tries cost time, and five in a row cost a minute. */
+  var pinBad = 0, pinUntil = 0;
   function tryPin() {
+    if (Date.now() < pinUntil) {
+      $("lock").classList.add("bad");
+      $("lockErr").textContent = t("Too many wrong tries. Wait a moment.") +
+        " " + Math.ceil((pinUntil - Date.now()) / 1000) + "s";
+      setTimeout(function () { $("lock").classList.remove("bad"); }, 400);
+      pin = ""; paintDots(); return;
+    }
     var hit = S.staff.filter(function (u) { return u.pin === hashPin(pin); })[0];
     if (!hit) {
+      pinBad += 1;
+      if (pinBad >= 5) { pinUntil = Date.now() + 60000; pinBad = 0; }
+      else if (pinBad >= 3) pinUntil = Date.now() + 5000;
       $("lock").classList.add("bad");
       $("lockErr").textContent = t("That PIN was not recognised.");
       setTimeout(function () { $("lock").classList.remove("bad"); }, 400);
       pin = ""; paintDots(); return;
     }
+    pinBad = 0; pinUntil = 0;
     S.me = hit; lastTouch = Date.now();
     try { localStorage.setItem(LS_KEY + ":session", JSON.stringify({ id: hit.id, at: Date.now() })); } catch (e) {}
     showLock(false); applyRole(); setTab(S.shift ? "order" : "shift");
@@ -2265,14 +2436,16 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }, 30000);
 
   // manager approval prompt — returns through a callback
-  function askManager(reason, ok) {
+  function askManager(reason, ok, onCancel) {
     if (isMgr()) { ok(S.me); return; }
     modal('<div class="padded stack"><h3>' + esc(t("Manager PIN")) + "</h3>" +
       '<p class="hint" style="margin:0">' + esc(reason) + "</p>" +
       '<input class="big-in" id="mgrPin" type="password" inputmode="numeric" maxlength="4" autocomplete="off"></div>' +
       '<div class="acts"><button class="btn" id="mgrNo" type="button">' + esc(t("Cancel")) + "</button>" +
       '<button class="btn primary" id="mgrYes" type="button">' + esc(t("Approve")) + "</button></div>");
-    $("mgrNo").addEventListener("click", closeModal);
+    $("mgrNo").addEventListener("click", function () {
+      closeModal(); if (onCancel) onCancel();
+    });
     $("mgrYes").addEventListener("click", function () {
       var v = ($("mgrPin").value || "").replace(/\D/g, "");
       var who = S.staff.filter(function (u) { return u.pin === hashPin(v) && u.role === "manager"; })[0];
@@ -2297,22 +2470,43 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   });
   $("search").addEventListener("input", function (e) { S.q = e.target.value.trim().toLowerCase(); renderItems(); });
 
-  function inCart(id) {
-    return S.cart.reduce(function (a, l) { return a + (l.id === id ? l.qty : 0); }, 0);
+  // rebuilt once per render instead of scanning the whole cart 210 times
+  var cartIdx = null;
+  function cartCount(id) {
+    if (!cartIdx) {
+      cartIdx = {};
+      S.cart.forEach(function (l) { cartIdx[l.id] = (cartIdx[l.id] || 0) + l.qty; });
+    }
+    return cartIdx[id] || 0;
   }
+  function inCart(id) { return cartCount(id); }
   function renderItems() {
+    cartIdx = null;                       // one index per render, not per item
     var list = S.menu.filter(function (i) {
       if (i.active === false) return false;
       if (S.cat !== "All" && i.cat !== S.cat) return false;
       if (S.q && (i.name + " " + (i.ar || "")).toLowerCase().indexOf(S.q) < 0) return false;
       return true;
     });
-    if (!list.length) {
-      $("items").innerHTML = '<div class="empty" style="grid-column:1/-1">' +
-        esc(t("Nothing matches that. Try another category or clear the search.")) + "</div>";
-      return;
+    var kitchen = list.filter(function (i) { return !isBar(i); });
+    var bar = list.filter(isBar);
+    var none = '<div class="empty" style="grid-column:1/-1">' +
+      esc(t("Nothing matches that. Try another category or clear the search.")) + "</div>";
+
+    $("items").innerHTML = kitchen.length ? tiles(kitchen) : none;
+    $("itemsBar").innerHTML = bar.length ? tiles(bar) : none;
+    $("nKitchen").textContent = kitchen.length || "";
+    $("nBar").textContent = bar.length || "";
+    // when a filter leaves one side empty, give the whole width to the other
+    $("halfKitchen").className = "half" + (kitchen.length ? "" : " off");
+    $("halfBar").className = "half" + (bar.length ? "" : " off");
+    if (!kitchen.length && !bar.length) {
+      $("halfKitchen").className = "half";
+      $("items").innerHTML = none;
     }
-    $("items").innerHTML = list.map(function (i) {
+  }
+  function tiles(list) {
+    return list.map(function (i) {
       var st = stockState(i);
       var mn = Number(i.main) || 0;
       var label = st === "out"
@@ -2328,9 +2522,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         "</span></button>";
     }).join("");
   }
-  $("items").addEventListener("click", function (e) {
-    var b = e.target.closest("button[data-add]");
-    if (b) tapItem(b.dataset.add);
+  ["items", "itemsBar"].forEach(function (id) {
+    $(id).addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-add]");
+      if (b) tapItem(b.dataset.add);
+    });
   });
 
   function tapItem(id) {
@@ -2390,7 +2586,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         '<input id="lnNote" value="' + esc(note) + '"></div>' +
         '<div class="fld"><label for="lnQty">' + esc(t("Quantity")) + "</label>" +
         '<div class="stepper"><button type="button" id="qMinus">−</button>' +
-        '<input id="lnQty" type="number" min="1" value="' + qty + '">' +
+        '<input id="lnQty" type="text" inputmode="decimal" min="1" value="' + qty + '">' +
         '<button type="button" id="qPlus">+</button></div></div>' +
         "</div>" +
         '<div class="acts">' +
@@ -2404,7 +2600,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         var o = g.opts[+b.dataset.o];
         if (isOn(o)) chosen = chosen.filter(function (c) { return c.name !== o.name; });
         else chosen.push({ name: o.name, ar: o.ar || "", price: o.price || 0 });
-        note = $("lnNote").value; qty = Math.max(1, Number($("lnQty").value) || 1);
+        note = $("lnNote").value.slice(0, 200); qty = Math.max(1, Math.min(9999, Math.floor(num($("lnQty").value, 9999))));
         draw();
       });
       $("qMinus").addEventListener("click", function () { $("lnQty").value = Math.max(1, (Number($("lnQty").value) || 1) - 1); });
@@ -2415,7 +2611,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         closeModal(); renderTicket(); renderItems();
       });
       $("optYes").addEventListener("click", function () {
-        var q = Math.max(1, Number($("lnQty").value) || 1), n = $("lnNote").value.trim();
+        var q = Math.max(1, Math.min(9999, Math.floor(num($("lnQty").value, 9999)))), n = $("lnNote").value.trim().slice(0, 200);
         if (line) {
           line.opts = chosen; line.note = n;
           line.qty = Math.max(1, Math.floor(Number(q) || 1));
@@ -2458,6 +2654,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     return { sub: sub, disc: disc, net: net, srv: srv, vat: vat, total: r2(net + srv + vat) };
   }
   function renderTicket() {
+    saveDraft();
     var tt = totals();
     var count = S.cart.reduce(function (a, l) { return a + l.qty; }, 0);
     $("tCount").textContent = count + " " + (count === 1 ? t("item") : t("items")) + " · " + money(tt.total);
@@ -2489,7 +2686,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="row"><span>' + esc(t("Subtotal")) + '</span><span class="num">' + money(tt.sub) + "</span></div>" +
       (tt.disc ? '<div class="row disc"><span>' + esc(t("Discount")) +
         (S.disc.kind === "%" ? ' <span dir="ltr">' + S.disc.value + "%</span>" : "") +
-        '</span><span class="num">' + mi() + money(tt.disc) + "</span></div>" : "") +
+        '</span><span class="num">' + minusSign() + money(tt.disc) + "</span></div>" : "") +
       (S.svcOn
         ? '<div class="row"><span>' + esc(t("Service")) + ' <span dir="ltr">' + (S.settings.service || 0) +
           '%</span></span><span class="num">' + money(tt.srv) + "</span></div>"
@@ -2601,6 +2798,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       by: S.me ? S.me.name : "", at: new Date().toISOString(),
       total: totals().total, upd: Date.now(), del: false
     };
+    // keep the "bill printed" mark only while the bill is still true: the
+    // moment the table orders something else the printed one is out of date
+    var prev = S.parked.filter(function (x) { return x.id === rec.id; })[0];
+    if (prev && prev.billed && r2(prev.total) === r2(rec.total)) {
+      rec.billed = true; rec.billedAt = prev.billedAt; rec.billedBy = prev.billedBy;
+    }
     // one table can only ever have one open check: clear out any other record
     // claiming this table, or the floor plan hides a bill and it never gets paid
     S.parked.forEach(function (o) {
@@ -2631,10 +2834,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     clearTimeout(parkT);
     saveTableTicket();
   }
-  window.addEventListener("pagehide", flushTable);
-  window.addEventListener("beforeunload", flushTable);
+  window.addEventListener("pagehide", function () { flushTable(); draftNow(); saveFlush(); });
+  window.addEventListener("beforeunload", function () { flushTable(); saveFlush(); });
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "hidden") flushTable();
+    if (document.visibilityState === "hidden") { flushTable(); saveFlush(); }
   });
   function releaseTable() {
     clearTimeout(parkT);
@@ -2672,8 +2875,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       if (!(Number(S.settings.vat) || 0)) { toast(t("Set the VAT % in Setup first."), true); return; }
       S.vatOn = true; renderTicket(); return;
     }
-    askManager(t("Charge this check without VAT?"), function () {
-      S.vatOn = false; renderTicket();
+    askManager(t("Charge this check without VAT?"), function (who) {
+      // record WHO allowed it — a waived tax with no approver on it is
+      // exactly the hole a tax inspector asks about
+      S.vatOn = false; S.vatBy = who ? who.name : (S.me ? S.me.name : "");
+      S.vatAt = new Date().toISOString();
+      renderTicket();
     });
   });
   $("noteBtn").addEventListener("click", function () {
@@ -2682,7 +2889,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="acts"><button class="btn" id="nNo" type="button">' + esc(t("Cancel")) + "</button>" +
       '<button class="btn primary" id="nYes" type="button">' + esc(t("Save")) + "</button></div>");
     $("nNo").addEventListener("click", closeModal);
-    $("nYes").addEventListener("click", function () { S.note = $("tkNote").value.trim(); closeModal(); renderTicket(); });
+    $("nYes").addEventListener("click", function () { S.note = $("tkNote").value.trim().slice(0, 300); closeModal(); renderTicket(); });
   });
 
   $("tblBtn").addEventListener("click", function () {
@@ -2707,7 +2914,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     modal('<div class="padded stack"><h3>' + esc(t("Discount")) + "</h3>" +
       '<div class="seg" id="dKind"><button type="button" data-k="%" aria-pressed="true">' + esc(t("Percent")) + "</button>" +
       '<button type="button" data-k="amt" aria-pressed="false">' + esc(t("Amount")) + "</button></div>" +
-      '<input class="big-in" id="dVal" type="number" min="0" step="1" value="0"></div>' +
+      '<input class="big-in" id="dVal" type="text" inputmode="decimal" min="0" step="1" value="0"></div>' +
       '<div class="acts"><button class="btn danger" id="dClear" type="button">' + esc(t("Remove")) + "</button>" +
       '<button class="btn primary" id="dYes" type="button">' + esc(t("Apply")) + "</button></div>");
     var kind = "%";
@@ -2719,7 +2926,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     });
     $("dClear").addEventListener("click", function () { S.disc = null; closeModal(); renderTicket(); });
     $("dYes").addEventListener("click", function () {
-      var v = Math.max(0, Number($("dVal").value) || 0);
+      var v = Math.max(0, num($("dVal").value, 1e7));
+      if (kind === "%") v = Math.min(100, v);      // never more than the whole bill
       if (!v) { S.disc = null; closeModal(); renderTicket(); return; }
       var sub = S.cart.reduce(function (a, l) { return a + lineUnit(l) * l.qty; }, 0);
       var pct = kind === "%" ? v : (sub ? v / sub * 100 : 100);
@@ -2770,7 +2978,9 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       if ($("cNo")) $("cNo").addEventListener("click", closeModal);
       if ($("cClear")) $("cClear").addEventListener("click", function () { S.customer = null; closeModal(); renderTicket(); });
       $("cNew").addEventListener("click", function () {
-        var n = $("cn").value.trim(), p = $("cp").value.trim(), a = $("ca").value.trim();
+        // a name is a name: 5000 characters of it goes into every receipt,
+        // every backup and every Excel file, for ever
+        var n = $("cn").value.trim().slice(0, 80), p = $("cp").value.trim().slice(0, 30), a = $("ca").value.trim().slice(0, 200);
         if (!n && !p) { closeModal(); return; }
         var c = { id: "c" + uid(), name: n || p, phone: p, address: a, points: 0, visits: 0, spend: 0 };
         S.customers.unshift(c); queueCust(c);
@@ -2781,6 +2991,64 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
 
   /* ============ park / recall ============ */
+  /* The bill the customer reads BEFORE paying. The table stays open, nothing
+     is charged, no stock moves and no order number is used — so it must not
+     look like the tax invoice that comes afterwards. It can be printed again
+     as often as the table adds to it. */
+  function billBody() {
+    var tt = totals();
+    var when = new Date();
+    return '<div class="l big" style="justify-content:center">' + esc(t("BILL \u2014 not a receipt")) + "</div>" +
+      '<div class="l"><span>' + esc(S.table ? t("Table") + " " + S.table : t(S.type)) + "</span><span>" +
+        esc(ltr(when.getDate() + " " + mon(when) + (LANG === "ar" ? "\u200e" : "") + " " + hm(when))) + "</span></div>" +
+      '<div class="l"><span>' + esc(t("Cashier")) + " " + esc(S.me ? S.me.name : "") + "</span><span>" +
+        esc(S.customer ? S.customer.name : "") + "</span></div><hr>" +
+      S.cart.map(function (l) {
+        var ex = (l.opts || []).filter(function (o) { return o.name; })
+          .map(function (o) { return LANG === "ar" && o.ar ? o.ar : o.name; }).join(", ");
+        return '<div class="l"><span dir="auto">' + l.qty + " \u00d7 " + esc(lineName(l)) + "</span><span>" +
+          money(lineUnit(l) * l.qty) + "</span></div>" +
+          (ex ? '<div class="l sm"><span>+ ' + esc(ex) + "</span><span></span></div>" : "");
+      }).join("") + "<hr>" +
+      '<div class="l"><span>' + esc(t("Subtotal")) + "</span><span>" + money(tt.sub) + "</span></div>" +
+      (tt.disc ? '<div class="l"><span>' + esc(t("Discount")) + "</span><span>" + minusSign() + money(tt.disc) + "</span></div>" : "") +
+      (S.svcOn ? '<div class="l"><span>' + esc(t("Service")) +
+        ((Number(S.settings.service) || 0) ? " " + ltr(r2(S.settings.service) + "%") : "") +
+        "</span><span>" + money(tt.srv) + "</span></div>" : "") +
+      (S.vatOn ? '<div class="l"><span>' + esc(t("VAT")) +
+        ((Number(S.settings.vat) || 0) ? " " + ltr(r2(S.settings.vat) + "%") : "") +
+        "</span><span>" + money(tt.vat) + "</span></div>" : "") +
+      '<div class="l big"><span>' + esc(t("Total")) + " " + esc(cur()) + "</span><span>" + money(tt.total) + "</span></div>";
+  }
+  function printBill() {
+    if (!S.cart.length) { toast(t("Nothing on the ticket yet."), true); return; }
+    var body = billBody();
+    // write the held check down FIRST: it is saved on a short delay, so on a
+    // table whose bill is asked for straight away there was nothing yet to
+    // mark, and the flag was lost
+    if (S.table) flushTable();
+    // remember that this table asked for the bill, so the floor plan shows it
+    if (S.table && S.editing) {
+      var pk = S.parked.filter(function (x) { return x.id === S.editing; })[0];
+      if (pk) {
+        pk.billed = true; pk.billedAt = new Date().toISOString();
+        pk.billedBy = S.me ? S.me.name : ""; pk.upd = Date.now();
+        queueParked(pk);
+      }
+    }
+    modal('<div class="rcpt"><div class="rh"><div class="n">El Empratour</div><div class="s">' +
+      esc(t("Restaurant & Bar \u00b7 Sherry St, Sekala")) + "</div>" + taxLine() + "</div>" + body + "</div>" +
+      '<div class="acts"><button class="btn primary" id="prBill" type="button">' + esc(t("Print")) + "</button>" +
+      '<button class="btn" id="okBill" type="button">' + esc(t("Done")) + "</button></div>");
+    $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' +
+      esc(t("Restaurant & Bar \u00b7 Sherry St, Sekala")) + "</div>" + taxLine() + "<hr>" + body +
+      '<hr><div class="c">' + esc(t("Please check the bill before paying.")) + "</div>";
+    $("prBill").addEventListener("click", function () { window.print(); });
+    $("okBill").addEventListener("click", closeModal);
+    renderTables(); updateBadges();
+  }
+  $("billBtn").addEventListener("click", printBill);
+
   $("parkBtn").addEventListener("click", function () {
     if (!S.cart.length) return;
     if (S.table) {                       // already held; just go back to the floor
@@ -2838,9 +3106,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function renderTables() {
     $("tableGrid").innerHTML = S.tables.map(function (x) {
       var p = parkedFor(x.name);
-      return '<button type="button" class="tbl' + (p ? " busy" : "") + '" data-tn="' + esc(x.name) + '">' +
+      // a table whose bill has been printed is waiting to pay — the one thing
+      // a manager glancing at the floor plan most needs to see
+      return '<button type="button" class="tbl' + (p ? " busy" : "") + (p && p.billed ? " billed" : "") +
+        '" data-tn="' + esc(x.name) + '">' +
         '<span class="nm">' + esc(x.name) + "</span>" +
-        '<span class="st">' + esc(p ? t("Open") : t("Free")) + "</span>" +
+        '<span class="st">' + esc(p ? (p.billed ? t("Bill printed") : t("Open")) : t("Free")) + "</span>" +
         (p ? '<span class="amt num">' + money(p.total) + "</span>" : "") + "</button>";
     }).join("");
     var living = S.parked.filter(function (p) { return !p.del; });
@@ -2848,6 +3119,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       return '<details class="ord"><summary><span class="no">' + esc(p.table || "—") + "</span>" +
         '<span class="when">' + esc(hhmm(p.at)) + " · " + esc(p.by) + "</span>" +
         '<span class="pill free">' + esc(t(p.type)) + "</span>" +
+        (p.billed ? '<span class="pill info">' + esc(t("Bill printed")) + "</span>" : "") +
         '<span class="tt num">' + money(p.total) + "</span></summary>" +
         '<div class="body">' + p.cart.map(function (l) {
           return '<span class="l"><span dir="auto">' + l.qty + " × " + esc(lineName(l)) + "</span></span>";
@@ -2883,13 +3155,40 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     }
   });
 
+  /* What the whole ticket needs, per item and per ingredient — not per line.
+     Checking each line on its own let two lines of the same drink pass
+     against a fridge that could only cover one of them, and nothing ever
+     checked the ingredients, so a kitchen with no oil kept selling. */
+  function cartShortages() {
+    var wantI = {}, wantG = {}, out = [];
+    S.cart.forEach(function (l) {
+      var it = byId(l.id);
+      if (!it) return;
+      if (it.track) wantI[it.id] = (wantI[it.id] || 0) + l.qty;
+      (it.recipe || []).forEach(function (r) {
+        var g = ingById(r.ing);
+        if (!g) return;
+        wantG[g.id] = Math.round(((wantG[g.id] || 0) + (Number(r.qty) || 0) * l.qty) * 1000) / 1000;
+      });
+    });
+    Object.keys(wantI).forEach(function (id) {
+      var it = byId(id);
+      if (it && wantI[id] > (Number(it.stock) || 0)) out.push(nm(it));
+    });
+    Object.keys(wantG).forEach(function (id) {
+      var g = ingById(id);
+      if (g && wantG[id] > (Number(g.stock) || 0) + 0.0005) out.push(nm(g));
+    });
+    return out;
+  }
+
   /* ============ payment ============ */
   $("sendBtn").addEventListener("click", function () {
     if (!S.cart.length) return;
     if (!S.shift) { toast(t("Open a shift before taking orders."), true); setTab("shift"); return; }
-    var short = S.cart.filter(function (l) { var it = byId(l.id); return it && it.track && l.qty > it.stock; });
-    if (short.length) {
-      toast(t("Not enough") + " " + lineName(short[0]) + " " + t("in storage."), true);
+    var bad = cartShortages();
+    if (bad.length) {
+      toast(t("Not enough") + " " + bad[0] + " " + t("in storage."), true);
       renderItems(); return;
     }
     openPay();
@@ -2911,14 +3210,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<button type="button" class="paybtn" data-pm="Card" aria-pressed="false">' + esc(t("Card")) + "</button>" +
       '<button type="button" class="paybtn" data-pm="Split" aria-pressed="false">' + esc(t("Split")) + "</button></div>" +
       '<div id="cardArea" hidden><div class="fld"><label for="cardAmt">' + esc(t("Card amount")) + "</label>" +
-      '<input class="big-in" id="cardAmt" type="number" min="0" step="1" value="0"></div></div>' +
+      '<input class="big-in" id="cardAmt" type="text" inputmode="decimal" min="0" step="1" value="0"></div></div>' +
       '<div id="cashArea" class="stack">' +
         (avail.length ? '<div class="seg" id="curSeg"><button type="button" data-c="EGP" aria-pressed="true">' +
           esc(cur()) + "</button>" + avail.map(function (c) {
             return '<button type="button" data-c="' + c + '" aria-pressed="false">' + c + "</button>";
           }).join("") + "</div>" : "") +
         '<div class="fld"><label for="tender" id="tenderLbl">' + esc(t("Cash received")) + "</label>" +
-        '<input class="big-in" id="tender" type="number" min="0" step="1" value="' + Math.ceil(due) + '"></div>' +
+        '<input class="big-in" id="tender" type="text" inputmode="decimal" min="0" step="1" value="' + Math.ceil(due) + '"></div>' +
         '<div class="quick" id="quick"></div>' +
         '<div class="row" id="fxLine" hidden><span></span><span class="num"></span></div>' +
         '<div class="row" id="fxLine2" hidden><span></span><span class="num"></span></div>' +
@@ -2937,7 +3236,9 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 
     function rate() { return payCur === "EGP" ? 1 : fxRate(payCur); }
     function cardPart() {
-      return method === "Card" ? due : (method === "Split" ? Math.min(due, Number($("cardAmt").value) || 0) : 0);
+      // a NEGATIVE card amount used to be accepted, which booked negative
+      // card takings and inflated the cash expected in the drawer
+      return method === "Card" ? due : (method === "Split" ? Math.max(0, Math.min(due, num($("cardAmt").value, 1e7))) : 0);
     }
     function drawQuick() {
       var notes = payCur === "EGP" ? EGP_NOTES : FX_NOTES;
@@ -2951,7 +3252,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     }
     function upd() {
       var need = Math.max(0, due - cardPart());
-      var got = method === "Card" ? 0 : (Number($("tender").value) || 0);
+      var got = method === "Card" ? 0 : Math.max(0, num($("tender").value, 1e7));
       var gotEgp = Math.round(got * rate() * 100) / 100;
       $("cardArea").hidden = method === "Cash";
       $("cashArea").hidden = method === "Card";
@@ -3012,14 +3313,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       var b = e.target.closest("button[data-q]");
       if (!b) return;
       $("tender").value = b.dataset.q === "exact" ? needFx()
-        : (Number($("tender").value) || 0) + Number(b.dataset.q);
+        : Math.max(0, num($("tender").value, 1e7)) + Number(b.dataset.q);
       upd();
     });
     $("cancelPay").addEventListener("click", closeModal);
     $("confirmPay").addEventListener("click", function () {
       var card = cardPart();
       var need = Math.max(0, due - card);
-      var got = method === "Card" ? 0 : (Number($("tender").value) || 0);
+      var got = method === "Card" ? 0 : Math.max(0, num($("tender").value, 1e7));
       var gotEgp = Math.round(got * rate() * 100) / 100;
       var over = Math.max(0, Math.round((gotEgp - need) * 100) / 100);
       var tip = keepTip ? over : 0;
@@ -3070,13 +3371,25 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     lines.forEach(function (l) {
       var it = byId(l.id);
       if (!it) return;
-      if (it.track) { it.stock = Math.max(0, it.stock - l.qty); di[it.id] = (di[it.id] || 0) - l.qty; touched.push(it); }
+      if (it.track) {
+        // record what was ACTUALLY taken off the shelf, not what was asked
+        // for. clamping at zero and then booking the full quantity meant a
+        // later void gave back stock that had never been there.
+        var took = Math.min(Number(it.stock) || 0, l.qty);
+        it.stock = r3((Number(it.stock) || 0) - took);
+        di[it.id] = (di[it.id] || 0) - took;
+        l.took = took;
+        touched.push(it);
+      }
       (it.recipe || []).forEach(function (r) {
         var g = ingById(r.ing);
         if (!g) return;
-        var take = (Number(r.qty) || 0) * l.qty;
-        g.stock = Math.max(0, Math.round((g.stock - take) * 1000) / 1000);
-        dn[g.id] = (dn[g.id] || 0) - take;
+        var want = (Number(r.qty) || 0) * l.qty;
+        var take = Math.min(Number(g.stock) || 0, want);
+        g.stock = r3((Number(g.stock) || 0) - take);
+        dn[g.id] = r3((dn[g.id] || 0) - take);
+        l.tookIng = l.tookIng || {};
+        l.tookIng[g.id] = r3((l.tookIng[g.id] || 0) + take);
       });
     });
 
@@ -3134,8 +3447,22 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var no = (S.settings.taxNo || "").trim();
     return no ? '<div class="s">' + esc(t("Tax reg. no.")) + " " + esc(no) + "</div>" : "";
   }
-  function receiptBody(o) {
-    return '<div class="l"><span>' + esc(o.ref) + "</span><span>" + esc(o.time) + "</span></div>" +
+  function receiptDate(o) {
+    try { return whenStr(o.ts || new Date().toISOString()); } catch (e) { return o.time || ""; }
+  }
+  function receiptBody(o, dup) {
+    // A cancelled check used to reprint as a clean, valid-looking receipt with
+    // nothing on it to say so — handed to a customer it is a receipt for money
+    // the restaurant never took.
+    return (o.void ? '<div class="l big" style="color:var(--bad);justify-content:center">' +
+        esc(t("VOIDED — NOT A VALID RECEIPT")) + "</div>" +
+        '<div class="l"><span>' + esc(t("Voided by")) + "</span><span>" + esc(o.voidBy || "") +
+        (o.voidAt ? " · " + esc(whenStr(o.voidAt)) : "") + "</span></div><hr>" : "") +
+      (dup ? '<div class="l" style="justify-content:center;font-weight:700">' +
+        esc(t("DUPLICATE \u2014 reprint")) + "</div>" : "") +
+      // the DATE, not just the time: a tax invoice with no date on it is not
+      // a tax invoice, and a reprint months later was unidentifiable
+      '<div class="l"><span>' + esc(o.ref) + "</span><span>" + esc(receiptDate(o)) + "</span></div>" +
       '<div class="l"><span>' + esc(t(o.type)) + (o.table ? " · " + esc(o.table) : "") + "</span>" +
       "<span>" + esc(o.cust ? o.cust.name : "") + "</span></div>" +
       '<div class="l"><span>' + esc(t("Cashier")) + " " + esc(o.by) + "</span><span>" +
@@ -3149,46 +3476,61 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           (l.note ? '<div class="l sm"><span>' + esc(l.note) + "</span><span></span></div>" : "");
       }).join("") + "<hr>" +
       '<div class="l"><span>' + esc(t("Subtotal")) + "</span><span>" + money(o.sub) + "</span></div>" +
-      (o.disc ? '<div class="l"><span>' + esc(t("Discount")) + "</span><span>" + mi() + money(o.disc) + "</span></div>" : "") +
+      (o.disc ? '<div class="l"><span>' + esc(t("Discount")) + "</span><span>" + minusSign() + money(o.disc) + "</span></div>" : "") +
       (o.svcOn === false ? '<div class="l"><span>' + esc(t("Service")) + "</span><span>" + esc(t("not charged")) + "</span></div>"
-        : '<div class="l"><span>' + esc(t("Service")) + "</span><span>" + money(o.service) + "</span></div>") +
+        : '<div class="l"><span>' + esc(t("Service")) +
+          (o.svcRate ? " " + ltr(r2(o.svcRate * 100) + "%") : "") + "</span><span>" + money(o.service) + "</span></div>") +
       (o.vatOn === false ? '<div class="l"><span>' + esc(t("VAT")) + "</span><span>" + esc(t("not charged")) + "</span></div>"
-        : '<div class="l"><span>' + esc(t("VAT")) + "</span><span>" + money(o.vat) + "</span></div>") +
+        : '<div class="l"><span>' + esc(t("VAT")) +
+          (o.vatRate ? " " + ltr(r2(o.vatRate * 100) + "%") : "") + "</span><span>" + money(o.vat) + "</span></div>") +
       '<div class="l big"><span>' + esc(t("Total")) + " " + esc(o.currency) + "</span><span>" + money(o.total) + "</span></div>" +
       // on an edited check cash/card already have the refund taken off them,
       // so add it back here — otherwise the slip shows the money leaving twice
       '<div class="l"><span>' + esc(t("Paid by")) + " " + esc(t(o.pay)) + "</span><span>" +
         money((o.card || 0) + (o.cash || 0) + (Number(o.refund) || 0)) + "</span></div>" +
-      (o.fx ? '<div class="l"><span>' + esc(t("Received")) + " " + esc(o.fx.cur) + " @ " + money(o.fx.rate) +
-        "</span><span>" + esc(fxMoney(o.fx.cur, o.fx.amt)) + "</span></div>" : "") +
+      // what the customer actually handed over. without this line a check paid
+      // with a $20 note printed "paid 446.88, change 523.12" and read as a loss
+      (o.fx
+        ? '<div class="l"><span>' + esc(t("Received")) + " " + esc(o.fx.cur) + " @ " + money(o.fx.rate) +
+            "</span><span>" + esc(fxMoney(o.fx.cur, o.fx.amt)) + "</span></div>" +
+          '<div class="l"><span>' + esc(t("Received")) + " " + esc(cur()) + "</span><span>" +
+            money(o.fx.egp != null ? o.fx.egp : (Number(o.fx.amt) || 0) * (Number(o.fx.rate) || 0)) + "</span></div>"
+        : (tendered(o) ? '<div class="l"><span>' + esc(t("Received")) + "</span><span>" +
+            money(tendered(o)) + "</span></div>" : "")) +
       (o.tip ? '<div class="l"><span>' + esc(t("Extra")) + "</span><span>" + money(o.tip) + "</span></div>" : "") +
       (o.change ? '<div class="l"><span>' + esc(t("Change")) + "</span><span>" + money(o.change) + "</span></div>" : "") +
       ((o.removed && o.removed.length) ? "<hr>" +
         '<div class="l"><span>' + esc(t("Removed after printing")) + "</span><span>" + esc(o.editedBy || "") + "</span></div>" +
         o.removed.map(function (rm) {
           return '<div class="l sm"><span dir="auto">' + rm.qty + " × " +
-            esc(LANG === "ar" && rm.ar ? rm.ar : rm.name) + "</span><span>" + mi() + money(rm.amount) + "</span></div>";
+            esc(LANG === "ar" && rm.ar ? rm.ar : rm.name) + "</span><span>" + minusSign() + money(rm.amount) + "</span></div>";
         }).join("") +
-        (o.refund ? '<div class="l big"><span>' + esc(t("Refunded")) + "</span><span>" + mi() + money(o.refund) + "</span></div>" +
-          '<div class="l"><span>' + esc(t("Net after edit")) + "</span><span>" + money(o.total) + "</span></div>" : "") : "");
+        (o.refund ? '<div class="l big"><span>' + esc(t("Refunded")) + "</span><span>" + minusSign() + money(o.refund) + "</span></div>" +
+          '<div class="l big"><span>' + esc(t("Net after edit")) + "</span><span>" + money(o.total) + "</span></div>" : "") : "");
   }
-  function receiptHTML(o) {
+  // the cash the customer put on the counter, before any change was given back
+  function tendered(o) {
+    var paid = (Number(o.cash) || 0) + (Number(o.card) || 0) + (Number(o.refund) || 0);
+    var t2 = r2(paid + (Number(o.change) || 0) + (Number(o.tip) || 0));
+    return Math.abs(t2 - paid) < 0.005 ? 0 : t2;    // nothing to say when it was exact
+  }
+  function receiptHTML(o, dup) {
     return '<div class="rh"><div class="n">El Empratour</div><div class="s">' +
-      esc(t("Restaurant & Bar · Sherry St, Sekala")) + "</div>" + taxLine() + "</div>" + receiptBody(o);
+      esc(t("Restaurant & Bar · Sherry St, Sekala")) + "</div>" + taxLine() + "</div>" + receiptBody(o, dup);
   }
-  function fillPrint(o) {
+  function fillPrint(o, dup) {
     $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' +
-      esc(t("Restaurant & Bar · Sherry St, Sekala")) + "</div>" + taxLine() + "<hr>" + receiptBody(o) +
+      esc(t("Restaurant & Bar · Sherry St, Sekala")) + "</div>" + taxLine() + "<hr>" + receiptBody(o, dup) +
       '<hr><div class="c">' + esc(t("Thank you — see you again")) + "</div>";
   }
-  function showReceipt(o, ran, backToTables) {
+  function showReceipt(o, ran, backToTables, dup) {
     var warn = (ran && ran.length) ? '<hr><div style="color:var(--warn);font-size:12px">' + esc(t("Storage alert:")) +
       " " + ran.map(function (i) { return esc(nm(i)) + " (" + i.stock + ")"; }).join(", ") + "</div>" : "";
-    modal('<div class="rcpt">' + receiptHTML(o) + warn + "</div>" +
+    modal('<div class="rcpt">' + receiptHTML(o, dup) + warn + "</div>" +
       '<div class="acts"><button class="btn" id="prBtn" type="button">' + esc(t("Print")) + "</button>" +
       '<button class="btn" id="dlBtn" type="button" hidden>' + esc(t("Save file")) + "</button>" +
       '<button class="btn primary" id="okBtn" type="button">' + esc(t("Next order")) + "</button></div>");
-    fillPrint(o);
+    fillPrint(o, dup);
     $("okBtn").addEventListener("click", function () {
       closeModal();
       if (backToTables) setTab("tables");
@@ -3312,7 +3654,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         '<div><p class="eyebrow" style="margin:0 0 4px">' + esc(t("Till is closed")) + "</p>" +
         '<p class="hint" style="margin:0">' + esc(t("Count the cash in the drawer and open a shift to start selling.")) + "</p></div>" +
         '<div class="fld" style="max-width:240px"><label for="floatIn">' + esc(t("Opening cash in drawer")) + "</label>" +
-        '<input class="big-in" id="floatIn" type="number" min="0" step="1" value="0"></div>' +
+        '<input class="big-in" id="floatIn" type="text" inputmode="decimal" min="0" step="1" value="0"></div>' +
         '<div><button class="btn primary" id="openShiftBtn" type="button">' + esc(t("Open shift")) + "</button></div></div>";
       $("openShiftBtn").addEventListener("click", openShift);
     } else {
@@ -3335,7 +3677,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           (s.tips ? "<dt>" + esc(t("Extra kept")) + "</dt><dd>" + money(s.tips) + "</dd>" : "") +
           "<dt>" + esc(t("Discounts")) + "</dt><dd>" + money(s.disc) + "</dd>" +
           "<dt>" + esc(t("Cash out")) + "</dt><dd>" + money(xc) + "</dd>" +
-          (shiftPayOut(S.shift.no) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>" + mi() +
+          (shiftPayOut(S.shift.no) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>" + minusSign() +
             money(shiftPayOut(S.shift.no)) + "</dd>" : "") +
           fxRows(s.fx).map(function (r) { return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("") +
           "<dt>" + esc(t("Voided")) + "</dt><dd>" + s.voids + "</dd>" +
@@ -3370,7 +3712,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           "<dt>" + esc(t("Cash sales")) + "</dt><dd>" + money(r.cash) + "</dd>" +
           "<dt>" + esc(t("Card sales")) + "</dt><dd>" + money(r.card) + "</dd>" +
           (r.tips ? "<dt>" + esc(t("Extra kept")) + "</dt><dd>" + money(r.tips) + "</dd>" : "") +
-          "<dt>" + esc(t("Expenses")) + "</dt><dd>" + mi() + money(r.expenses || 0) + "</dd>" +
+          "<dt>" + esc(t("Expenses")) + "</dt><dd>" + minusSign() + money(r.expenses || 0) + "</dd>" +
+          ((r.cashOut || 0) ? "<dt>" + esc(t("Cash out")) + "</dt><dd>" + minusSign() + money(r.cashOut) + "</dd>" : "") +
+          ((r.payOut || 0) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>" + minusSign() + money(r.payOut) + "</dd>" : "") +
+          ((r.tips || 0) ? "" : "") +
           "<dt>" + esc(t("Net income")) + "</dt><dd>" + money(r.net == null ? r.gross : r.net) + "</dd>" +
           "<dt>" + esc(t("Expected cash")) + "</dt><dd>" + money(r.expected) + "</dd>" +
           "<dt>" + esc(t("Counted")) + "</dt><dd>" + money(r.counted) + "</dd>" +
@@ -3389,10 +3734,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function payOut(amount, why, ref) {
     amount = r2(amount);
     if (!amount) return;
-    // With no shift open the cash still leaves the drawer, so it is charged to
-    // the shift that will be counted next. Skipping it left the next count
-    // short with nothing on the report to explain it.
-    var no = S.shift ? S.shift.no : (Number(S.settings.shiftNo) || 0) + 1;
+    // Charged to the OPEN shift, or to 0 when the till is closed. Charging it
+    // to "the next shift" double-counted it: the next cashier counts the
+    // drawer to set the opening float, so the money is already gone from it,
+    // and subtracting it again reported an honest count as over by that much.
+    // Shift 0 means "outside a shift" — it is day money, not shift money.
+    var no = S.shift ? S.shift.no : 0;
     S.adjust = [{
       id: "a" + Date.now().toString(36), at: new Date().toISOString(),
       shift: no, amount: amount, why: why || "refund", ref: ref || "",
@@ -3403,6 +3750,16 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function shiftPayOut(no) {
     return (S.adjust || []).reduce(function (a, x) {
       return a + (x.shift === no ? (Number(x.amount) || 0) : 0);
+    }, 0);
+  }
+  // money moved while no shift was open: it belongs to the day, not to any
+  // shift, and without this it appeared on no screen at all
+  function looseExpenses(k) {
+    return S.expenses.filter(function (e) { return !e.del && !e.shift && expDay(e) === k; });
+  }
+  function loosePayOut(k) {
+    return (S.adjust || []).reduce(function (a, x) {
+      return a + ((!x.shift && dayKey(new Date(x.at)) === k) ? (Number(x.amount) || 0) : 0);
     }, 0);
   }
   function dayPayOut(k) {
@@ -3416,8 +3773,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
 
   function renderExpenses() {
-    var list = S.shift ? shiftExpenses(S.shift.no) : dayExpenses(dayKey());
-    var total = sumExp(list);
+    // money taken out while the till was closed used to vanish from every
+    // screen the moment a shift opened. It is shown here too, in its own
+    // group, so it can be seen and removed — but not counted in this shift.
+    var loose = S.shift ? looseExpenses(dayKey()) : [];
+    var list = (S.shift ? shiftExpenses(S.shift.no) : dayExpenses(dayKey())).concat(loose);
+    var total = sumExp(S.shift ? shiftExpenses(S.shift.no) : dayExpenses(dayKey()));
     $("expPanel").innerHTML = list.length
       ? '<div class="tablewrap"><table><thead><tr>' +
           "<th>" + esc(t("Category")) + "</th><th>" + esc(t("Reason")) + "</th>" +
@@ -3425,12 +3786,13 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         "</tr></thead><tbody>" +
         list.map(function (e) {
           return '<tr><td>' + esc(t(e.cat || "Other")) + "</td>" +
-            "<td>" + esc(e.note || "") + '<span class="ar">' + esc(hhmm(e.ts)) + " · " + esc(e.by || "") + "</span></td>" +
+            "<td>" + esc(e.note || "") + '<span class="ar">' + esc(hhmm(e.ts)) + " · " + esc(e.by || "") +
+              (e.shift ? "" : " · " + esc(t("outside a shift"))) + "</span></td>" +
             "<td>" + esc(t(e.pay || "Cash")) + "</td>" +
-            '<td class="r num" style="color:var(--bad)">' + mi() + money(e.amount) + "</td>" +
+            '<td class="r num" style="color:var(--bad)">' + minusSign() + money(e.amount) + "</td>" +
             '<td><button class="del" type="button" data-xdel="' + e.id + '">✕</button></td></tr>';
         }).join("") +
-        '<tr><td colspan="3"><strong>' + esc(t("Total")) + '</strong></td><td class="r num" style="color:var(--bad)">' + mi() +
+        '<tr><td colspan="3"><strong>' + esc(t("Total")) + '</strong></td><td class="r num" style="color:var(--bad)">' + minusSign() +
           money(total) + "</td><td></td></tr>" +
         "</tbody></table></div>"
       : '<div class="empty">' + esc(t("No expenses yet.")) + "</div>";
@@ -3438,7 +3800,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function expenseSheet() {
     modal('<div class="padded stack"><h3>' + esc(t("Expense")) + "</h3>" +
       '<div class="fld"><label for="xAmt">' + esc(t("Amount")) + " " + esc(cur()) + "</label>" +
-      '<input class="big-in" id="xAmt" type="number" min="0" step="1" value="0"></div>' +
+      '<input class="big-in" id="xAmt" type="text" inputmode="decimal" min="0" step="1" value="0"></div>' +
       '<div class="grid2">' +
         '<div class="fld"><label for="xCat">' + esc(t("Category")) + '</label><select id="xCat">' +
           EXP_CATS.map(function (c) { return '<option value="' + esc(c) + '">' + esc(t(c)) + "</option>"; }).join("") +
@@ -3452,28 +3814,41 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<button class="btn primary" id="xYes" type="button">' + esc(t("Save")) + "</button></div>");
     $("xNo").addEventListener("click", closeModal);
     $("xYes").addEventListener("click", function () {
-      var amt = Math.max(0, Number($("xAmt").value) || 0);
-      if (!amt) { closeModal(); return; }
-      var rec = { id: "x" + DEVICE + "-" + uid(), ts: new Date().toISOString(),
-        shift: S.shift ? S.shift.no : 0, amount: amt, cat: $("xCat").value,
-        pay: $("xPay").value, note: $("xNote").value.trim(),
-        by: S.me ? S.me.name : "", del: false };
-      S.expenses.unshift(rec);
-      queueExpense(rec);
-      closeModal(); renderShift();
-      if (S.tab === "sales") renderSales();
-      toast(t("Saved"));
+      var amt = Math.max(0, num($("xAmt").value));
+      if (!amt) { toast(t("Type how much, as a number above zero."), true); return; }
+      if (amt > 1000000) { toast(t("That amount looks wrong."), true); return; }
+      var cat = $("xCat").value, pay = $("xPay").value, note = $("xNote").value.trim().slice(0, 200);
+      // money leaving the drawer is the easiest thing in the whole till to
+      // steal, so it needs the same approval that putting it back already did
+      var save = function (who) {
+        var rec = { id: "x" + DEVICE + "-" + uid(), ts: new Date().toISOString(),
+          shift: S.shift ? S.shift.no : 0, amount: amt, cat: cat,
+          pay: pay, note: note,
+          by: S.me ? S.me.name : "", okBy: who ? who.name : (S.me ? S.me.name : ""),
+          del: false };
+        S.expenses.unshift(rec);
+        queueExpense(rec);
+        closeModal(); renderShift();
+        if (S.tab === "sales") renderSales();
+        toast(t("Saved"));
+      };
+      if (pay === "Cash" && !isMgr()) askManager(t("Cash out") + " · " + money(amt), save);
+      else save(S.me);
     });
     setTimeout(function () { var el = $("xAmt"); if (el) { el.focus(); el.select(); } }, 50);
   }
-  $("addExpBtn").addEventListener("click", expenseSheet);
+  $("addExpBtn").addEventListener("click", function () { expenseSheet(); });
   $("expPanel").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-xdel]");
     if (!b) return;
     var rec = S.expenses.filter(function (x) { return x.id === b.dataset.xdel; })[0];
     if (!rec) return;
-    askManager(t("Remove") + " · " + money(rec.amount), function () {
+    askManager(t("Remove") + " · " + money(rec.amount), function (who) {
       rec.del = true;
+      // without this the record simply vanished from the shift and nothing
+      // anywhere said the money had ever been taken out, or who erased it
+      rec.delBy = who ? who.name : (S.me ? S.me.name : "");
+      rec.delAt = new Date().toISOString();
       queueExpense(rec);
       renderShift();
       if (S.tab === "sales") renderSales();
@@ -3491,7 +3866,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     queueClock(c || S.clock[0]); renderShift();
   }
   function openShift() {
-    var f = Math.max(0, Number($("floatIn").value) || 0);
+    var f = Math.max(0, num($("floatIn").value, 1e7));
     S.settings.shiftNo = (Number(S.settings.shiftNo) || 0) + 1;
     S.shift = { no: S.settings.shiftNo, by: S.me.name, byId: S.me.id, openedAt: new Date().toISOString(), float: f };
     queueShift(); saveConfig();
@@ -3521,8 +3896,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         "<dt>" + esc(t("Cash sales")) + "</dt><dd>" + money(s.cash) + "</dd>" +
         "<dt>" + esc(t("Card sales")) + "</dt><dd>" + money(s.card) + "</dd>" +
         (s.tips ? "<dt>" + esc(t("Extra kept")) + "</dt><dd>" + money(s.tips) + "</dd>" : "") +
-        "<dt>" + esc(t("Cash out")) + "</dt><dd>" + mi() + money(xc) + "</dd>" +
-        (shiftPayOut(S.shift.no) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>" + mi() +
+        "<dt>" + esc(t("Cash out")) + "</dt><dd>" + minusSign() + money(xc) + "</dd>" +
+        (shiftPayOut(S.shift.no) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>" + minusSign() +
           money(shiftPayOut(S.shift.no)) + "</dd>" : "") +
         fxRows(s.fx).map(function (r) { return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("") +
         "<dt>" + esc(t("Net income")) + "</dt><dd>" + money(s.gross - xa) + "</dd>" +
@@ -3532,7 +3907,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       // figure rounded to the pound, which both invented a difference of a
       // few piastres on almost every shift and let a shift be closed without
       // anybody actually counting the drawer
-      '<input class="big-in" id="counted" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></div>' +
+      '<input class="big-in" id="counted" type="text" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></div>' +
       '<div class="duebar"><span>' + esc(t("Difference")) + '</span><span class="num" id="diffVal">—</span></div></div>' +
       '<div class="acts"><button class="btn" id="cancelClose" type="button">' + esc(t("Back")) + "</button>" +
       '<button class="btn primary" id="doClose" type="button">' +
@@ -3542,19 +3917,27 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       var el = $("diffVal");
       if (!typed()) { el.textContent = "—"; el.style.color = "var(--muted)"; return; }
       var c = r2(Number($("counted").value) || 0), d = r2(c - expected);
-      el.textContent = (d > 0 ? "+" : "") + money(d);
+      el.textContent = sgn(d, true);
       el.style.color = Math.abs(d) < 0.01 ? "var(--ok)" : "var(--bad)";
     }
     $("counted").addEventListener("input", upd);
     $("cancelClose").addEventListener("click", closeModal);
     $("doClose").addEventListener("click", function () {
       if (!typed()) { toast(t("Count the drawer and type what is in it."), true); $("counted").focus(); return; }
-      finishShift(s, expected, r2(Number($("counted").value) || 0), xc, xa);
+      var c = r2(Math.max(0, num($("counted").value)));      // never a negative drawer
+      // closing declares what is in the drawer. a cashier declaring his own
+      // count with nobody watching is the whole game, so a manager signs it.
+      if (isMgr()) { finishShift(s, expected, c, xc, xa, S.me); return; }
+      var m = $("modalMount").innerHTML;
+      askManager(t("Close shift") + " · " + t("Counted") + " " + money(c), function (who) {
+        finishShift(s, expected, c, xc, xa, who);
+      }, function () { $("modalMount").innerHTML = m; });
     });
     upd();
   }
-  function finishShift(s, expected, counted, xc, xa) {
+  function finishShift(s, expected, counted, xc, xa, okBy) {
     var rec = { no: S.shift.no, by: S.shift.by, openedAt: S.shift.openedAt, float: S.shift.float,
+      okBy: okBy ? okBy.name : (S.me ? S.me.name : ""),
       cashOut: xc || 0, expenses: xa || 0, tips: s.tips || 0, payOut: r2(shiftPayOut(S.shift.no)),
       net: s.gross - (xa || 0), fx: s.fx || {},
       closedBy: S.me ? S.me.name : "", closedAt: new Date().toISOString(), closedTs: Date.now(),
@@ -3572,7 +3955,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="l"><span>' + esc(t("Orders")) + "</span><span>" + rec.n + "</span></div>" +
       '<div class="l"><span>' + esc(t("Items sold")) + "</span><span>" + rec.items + "</span></div>" +
       '<div class="l"><span>' + esc(t("Discounts")) + "</span><span>" + money(rec.disc) + "</span></div>" +
-      '<div class="l"><span>' + esc(t("Expenses")) + "</span><span>" + mi() + money(rec.expenses) + "</span></div>" +
+      '<div class="l"><span>' + esc(t("Expenses")) + "</span><span>" + minusSign() + money(rec.expenses) + "</span></div>" +
       '<div class="l"><span>' + esc(t("Voided")) + "</span><span>" + rec.voids + "</span></div>" +
       '<div class="l"><span>' + esc(t("Cash sales")) + "</span><span>" + money(rec.cash) + "</span></div>" +
       '<div class="l"><span>' + esc(t("Card sales")) + "</span><span>" + money(rec.card) + "</span></div>" +
@@ -3580,8 +3963,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="l"><span>' + esc(t("Gross")) + " " + esc(cur()) + "</span><span>" + money(rec.gross) + "</span></div>" +
       '<div class="l big"><span>' + esc(t("Net income")) + " " + esc(cur()) + "</span><span>" + money(rec.net) + "</span></div><hr>" +
       '<div class="l"><span>' + esc(t("Opening float")) + "</span><span>" + money(rec.float) + "</span></div>" +
-      '<div class="l"><span>' + esc(t("Cash out")) + "</span><span>" + mi() + money(rec.cashOut) + "</span></div>" +
-      (rec.payOut ? '<div class="l"><span>' + esc(t("Paid back out")) + "</span><span>" + mi() + money(rec.payOut) + "</span></div>" : "") +
+      '<div class="l"><span>' + esc(t("Cash out")) + "</span><span>" + minusSign() + money(rec.cashOut) + "</span></div>" +
+      (rec.payOut ? '<div class="l"><span>' + esc(t("Paid back out")) + "</span><span>" + minusSign() + money(rec.payOut) + "</span></div>" : "") +
       fxRows(rec.fx).map(function (r) {
         return '<div class="l"><span>' + esc(r[0]) + "</span><span>" + esc(r[1]) + "</span></div>"; }).join("") +
       '<div class="l"><span>' + esc(t("Expected in drawer")) + "</span><span>" + money(rec.expected) + "</span></div>" +
@@ -3637,7 +4020,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           '<td class="r num" style="color:var(--txt-3)">' + (g.low || 0) + "</td>" +
           '<td><span class="stepper">' +
             '<button type="button" data-ig="' + g.id + '" data-d="-1">−</button>' +
-            '<input type="number" step="0.1" value="' + g.stock + '" data-iset="' + g.id + '">' +
+            '<input type="text" inputmode="decimal" step="0.1" value="' + g.stock + '" data-iset="' + g.id + '">' +
             '<button type="button" data-ig="' + g.id + '" data-d="1">+</button>' +
             '<button type="button" class="btn sm" data-ig="' + g.id + '" data-d="10" dir="ltr">+10</button>' +
           "</span></td>" +
@@ -3653,12 +4036,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           '<span class="ar" dir="auto">' + esc(t(i.cat)) + "</span></td>" +
           '<td><span class="stepper">' +
             '<button type="button" data-s="' + i.id + '" data-d="-1">−</button>' +
-            '<input type="number" min="0" value="' + fr + '" data-set="' + i.id + '">' +
+            '<input type="text" inputmode="decimal" min="0" value="' + fr + '" data-set="' + i.id + '">' +
             '<button type="button" data-s="' + i.id + '" data-d="1">+</button>' +
           "</span></td>" +
           '<td><span class="stepper">' +
             '<button type="button" data-ms="' + i.id + '" data-d="-1">−</button>' +
-            '<input type="number" min="0" value="' + mn + '" data-mset="' + i.id + '">' +
+            '<input type="text" inputmode="decimal" min="0" value="' + mn + '" data-mset="' + i.id + '">' +
             '<button type="button" data-ms="' + i.id + '" data-d="1">+</button>' +
             '<button type="button" class="btn sm" data-ms="' + i.id + '" data-d="12" dir="ltr">+12</button>' +
           "</span></td>" +
@@ -3705,8 +4088,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var c = S.counting || { f: {}, m: {} };
     return S.menu.filter(function (i) { return i.track; }).map(function (i) {
       var ef = Number(i.stock) || 0, em = Number(i.main) || 0;
-      var cf = c.f[i.id] === "" || c.f[i.id] == null ? null : Math.max(0, Math.round(Number(c.f[i.id]) || 0));
-      var cm = c.m[i.id] === "" || c.m[i.id] == null ? null : Math.max(0, Math.round(Number(c.m[i.id]) || 0));
+      var cf = c.f[i.id] === "" || c.f[i.id] == null ? null : Math.max(0, Math.round(num(c.f[i.id], 1e6)));
+      var cm = c.m[i.id] === "" || c.m[i.id] == null ? null : Math.max(0, Math.round(num(c.m[i.id], 1e6)));
       var df = cf == null ? 0 : cf - ef;
       var dm = cm == null ? 0 : cm - em;
       return { id: i.id, name: i.name, ar: i.ar || "", price: Number(i.price) || 0,
@@ -3753,12 +4136,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       .sort(function (a, b) { return (a.diff * a.price) - (b.diff * b.price); });
     var body = '<div class="l"><span>' + esc(t("Counted")) + "</span><span>" + rec.count + "</span></div>" +
       '<div class="l"><span>' + esc(t("Items with a difference")) + "</span><span>" + bad.length + "</span></div>" +
-      '<div class="l"><span>' + esc(t("Units")) + "</span><span>" + (rec.units > 0 ? "+" : "") + rec.units + "</span></div>" +
+      '<div class="l"><span>' + esc(t("Units")) + "</span><span>" + sgn(rec.units) + "</span></div>" +
       '<div class="l big" style="color:' + (rec.value < 0 ? "var(--bad)" : "var(--ok)") + '"><span>' +
-      esc(t("Value at selling price")) + "</span><span>" + (rec.value > 0 ? "+" : "") + money(rec.value) + "</span></div><hr>" +
+      esc(t("Value at selling price")) + "</span><span>" + sgn(rec.value, true) + "</span></div><hr>" +
       (bad.length ? bad.map(function (l) {
         return '<div class="l"><span dir="auto">' + esc(LANG === "ar" && l.ar ? l.ar : l.name) + "</span><span>" +
-          (l.diff > 0 ? "+" : "") + l.diff + " · " + money(l.diff * l.price) + "</span></div>";
+          sgn(l.diff) + " · " + sgn(l.diff * l.price, true) + "</span></div>";
       }).join("") : '<div class="l"><span>' + esc(t("Everything matched.")) + "</span><span></span></div>");
 
     modal('<div class="rcpt"><div class="rh"><div class="n">' + esc(t("Stocktake")) + "</div>" +
@@ -3775,8 +4158,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var lines = countLines(), tt = countTotals(lines);
     $("stockTiles").innerHTML =
       tile(t("Counted"), tt.done + " / " + lines.length, "") +
-      tile(t("Units"), (tt.units > 0 ? "+" : "") + tt.units, tt.units ? "warn" : "") +
-      tile(t("Value at selling price"), money(tt.value), tt.value < 0 ? "bad" : "") +
+      tile(t("Units"), sgn(tt.units), tt.units ? "warn" : "") +
+      tile(t("Value at selling price"), sgn(tt.value, true), tt.value < 0 ? "bad" : "") +
       tile(t("Items short"), tt.short, tt.short ? "bad" : "");
 
     $("moveWarn").innerHTML = '<div class="panel padded" style="margin-bottom:14px">' +
@@ -3800,14 +4183,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         '<td><strong dir="auto">' + esc(l.name) + "</strong>" +
         (l.ar ? '<span class="ar" dir="auto">' + esc(l.ar) + "</span>" : "") + "</td>" +
         '<td class="r num" style="color:var(--txt-3)">' + l.ef + "</td>" +
-        '<td><input class="cnt-in" type="number" min="0" inputmode="numeric" data-cf="' + l.id +
+        '<td><input class="cnt-in" type="text" inputmode="numeric" min="0" data-cf="' + l.id +
           '" value="' + (l.cf == null ? "" : l.cf) + '"></td>' +
         '<td class="r num" style="color:var(--txt-3)">' + l.em + "</td>" +
-        '<td><input class="cnt-in" type="number" min="0" inputmode="numeric" data-cm="' + l.id +
+        '<td><input class="cnt-in" type="text" inputmode="numeric" min="0" data-cm="' + l.id +
           '" value="' + (l.cm == null ? "" : l.cm) + '"></td>' +
         '<td class="r num" style="font-size:15px;color:' +
           (!l.done || !l.diff ? "var(--txt-3)" : (l.diff < 0 ? "var(--bad)" : "var(--ok)")) + '">' +
-          (l.done ? (l.diff > 0 ? "+" : "") + l.diff : "—") + "</td></tr>";
+          (l.done ? sgn(l.diff) : "\u2014") + "</td></tr>";
     }).join("");
     updateBadges();
   }
@@ -3819,7 +4202,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<p class="hint" style="margin:0" dir="auto">' + esc(nm(it)) + " · " + esc(t("Main store")) + " " +
       (Number(it.main) || 0) + " · " + esc(t("Fridge")) + " " + (Number(it.stock) || 0) + "</p>" +
       '<div class="fld"><label for="mvQty">' + esc(t("How much to move?")) + "</label>" +
-      '<input class="big-in" id="mvQty" type="number" min="1" step="1" max="' + (Number(it.main) || 0) +
+      '<input class="big-in" id="mvQty" type="text" inputmode="decimal" min="1" step="1" max="' + (Number(it.main) || 0) +
       '" value="' + Math.min(12, Number(it.main) || 0) + '"></div></div>' +
       '<div class="acts"><button class="btn" id="mvNo" type="button">' + esc(t("Cancel")) + "</button>" +
       '<button class="btn primary" id="mvYes" type="button">' + esc(t("Transfer")) + "</button></div>");
@@ -3845,6 +4228,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     return money(c.value) + " · " + whenStr(c.at);
   }
   $("cntStart").addEventListener("click", function () {
+    if (!needs("stock")) return;
     if (S.counting) { countCancel(); return; }
     countStart();
   });
@@ -3871,6 +4255,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   $("stockScope").addEventListener("change", function (e) { S.stockScope = e.target.value; renderStock(); });
   $("stockFilter").addEventListener("change", function (e) { S.stockFilter = e.target.value; renderStock(); });
   $("stockRows").addEventListener("click", function (e) {
+    if (!needs("stock")) return;
     var b = e.target.closest("button[data-s]"), g = e.target.closest("button[data-ig]"),
         w = e.target.closest("button[data-waste]"), ms = e.target.closest("button[data-ms]"),
         mv = e.target.closest("button[data-move]");
@@ -3892,18 +4277,19 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       var wi = ingById(w.dataset.waste);
       if (!wi) return;
       modal('<div class="padded stack"><h3>' + esc(t("Waste")) + " · " + esc(nm(wi)) + "</h3>" +
-        '<input class="big-in" id="wq" type="number" min="0" step="0.1" value="0"></div>' +
+        '<input class="big-in" id="wq" type="text" inputmode="decimal" min="0" step="0.1" value="0"></div>' +
         '<div class="acts"><button class="btn" id="wNo" type="button">' + esc(t("Cancel")) + "</button>" +
         '<button class="btn primary" id="wYes" type="button">' + esc(t("Save")) + "</button></div>");
       $("wNo").addEventListener("click", closeModal);
       $("wYes").addEventListener("click", function () {
-        var q = Math.max(0, Number($("wq").value) || 0);
+        var q = Math.max(0, num($("wq").value, 1e6));
         stockSet("ing", wi.id, wi.stock - q);
         closeModal(); renderStock();
       });
     }
   });
   $("stockRows").addEventListener("change", function (e) {
+    if (!needs("stock")) return;
     var a = e.target.closest("input[data-set]"), b = e.target.closest("input[data-iset]"),
         m = e.target.closest("input[data-mset]");
     if (a) { stockSet("item", a.dataset.set, a.value); renderStock(); }
@@ -3934,8 +4320,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     }
     $("stockTiles").innerHTML =
       tile(t("Counted"), tt.done + " / " + lines.length, "") +
-      tile(t("Units"), (tt.units > 0 ? "+" : "") + tt.units, tt.units ? "warn" : "") +
-      tile(t("Value at selling price"), money(tt.value), tt.value < 0 ? "bad" : "") +
+      tile(t("Units"), sgn(tt.units), tt.units ? "warn" : "") +
+      tile(t("Value at selling price"), sgn(tt.value, true), tt.value < 0 ? "bad" : "") +
       tile(t("Items short"), tt.short, tt.short ? "bad" : "");
   }
   $("stockRows").addEventListener("input", countInput);
@@ -4015,15 +4401,17 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           }).join(", ")];
       })) : "");
 
+    // keyed by the item's ID: two products that happen to share a name are
+    // two products, and merging them hides which one is actually selling
     var agg = {};
     live.forEach(function (o) {
       o.lines.forEach(function (l) {
-        var key = LANG === "ar" && l.ar ? l.ar : l.name;
-        if (!agg[key]) agg[key] = { qty: 0, amt: 0 };
+        var key = l.id || l.name;
+        if (!agg[key]) agg[key] = { qty: 0, amt: 0, n: (LANG === "ar" && l.ar ? l.ar : l.name) };
         agg[key].qty += l.qty; agg[key].amt += l.amount;
       });
     });
-    var top = Object.keys(agg).map(function (n) { return { n: n, q: agg[n].qty, a: agg[n].amt }; })
+    var top = Object.keys(agg).map(function (n) { return { n: agg[n].n, q: agg[n].qty, a: agg[n].amt }; })
       .sort(function (x, y) { return y.q - x.q; }).slice(0, 10);
     var max = top.length ? top[0].q : 1;
     $("sellers").innerHTML = top.length ? top.map(function (x) {
@@ -4032,7 +4420,13 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         '<span class="meter"><i style="width:' + Math.round(x.q / max * 100) + '%"></i></span></div>';
     }).join("") : '<div class="empty" style="padding:20px 0">' + esc(t("No sales recorded for this day yet.")) + "</div>";
 
-    $("orderList").innerHTML = orders.length ? orders.map(function (o) {
+    /* A busy night is 500 checks. Drawing every one of them, each with a
+       remove button per line, is 13,000 DOM nodes and two thirds of a second
+       of frozen tablet every time the Sales tab is opened. Show the newest
+       and let the person ask for more. */
+    var SHOWN = S.showAll ? orders.length : 60;
+    var vis = orders.slice(0, SHOWN);
+    $("orderList").innerHTML = (orders.length ? vis.map(function (o) {
       var oid = o.oid || String(o.no);
       return '<details class="ord' + (o.void ? " void" : "") + '"><summary>' +
         '<span class="no">' + esc(o.ref) + "</span>" +
@@ -4051,19 +4445,25 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         }).join("") +
         (o.removed || []).map(function (r) {
           return '<span class="l gone"><span dir="auto">' + r.qty + " × " +
-            esc(LANG === "ar" && r.ar ? r.ar : r.name) + '</span><span class="num">' + mi() + money(r.amount) + "</span></span>";
+            esc(LANG === "ar" && r.ar ? r.ar : r.name) + '</span><span class="num">' + minusSign() + money(r.amount) + "</span></span>";
         }).join("") +
-        (o.disc ? '<span class="l"><span>' + esc(t("Discount")) + '</span><span class="num">' + mi() + money(o.disc) + "</span></span>" : "") +
+        (o.disc ? '<span class="l"><span>' + esc(t("Discount")) + '</span><span class="num">' + minusSign() + money(o.disc) + "</span></span>" : "") +
         (o.cust ? '<span class="l"><span>' + esc(o.cust.name) + " · " + esc(o.cust.phone) + "</span><span></span></span>" : "") +
         (o.note ? '<span class="l"><span>✎ ' + esc(o.note) + "</span><span></span></span>" : "") +
         '<span class="l"><span>' + esc(t("Cashier")) + " " + esc(o.by) + "</span><span></span></span>" +
         (o.voidBy ? '<span class="l"><span>' + esc(t("Voided by")) + " " + esc(o.voidBy) + "</span><span></span></span>" : "") +
         (o.refund ? '<span class="l"><span>' + esc(t("Refunded")) + " · " + esc(t("Edited by")) + " " +
-          esc(o.editedBy || "") + '</span><span class="num">' + mi() + money(o.refund) + "</span></span>" : "") +
+          esc(o.editedBy || "") + '</span><span class="num">' + minusSign() + money(o.refund) + "</span></span>" : "") +
         '<span class="acts"><button class="btn sm" data-rp="' + esc(oid) + '" type="button">' + esc(t("Reprint")) + "</button>" +
         (o.void ? "" : '<button class="btn sm danger" data-vo="' + esc(oid) + '" type="button">' + esc(t("Void")) + "</button>") +
         "</span></div></details>";
-    }).join("") : '<div class="empty">' + esc(t("Nothing rung up on this day.")) + "</div>";
+    }).join("") : '<div class="empty">' + esc(t("Nothing rung up on this day.")) + "</div>") +
+      (orders.length > SHOWN
+        ? '<div style="padding:12px;text-align:center"><button class="btn" id="moreOrders" type="button">' +
+            esc(t("Show all")) + " (" + orders.length + ")</button></div>"
+        : "");
+    var mo = $("moreOrders");
+    if (mo) mo.addEventListener("click", function () { S.showAll = true; renderSales(); });
   }
   /* ---- taking an item off a check that is already charged ----
      The rates are read back off the check itself, not from today's settings,
@@ -4099,13 +4499,23 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 
     var it = byId(l.id), di = {}, dn = {};
     if (it) {
-      if (it.track) { it.stock += qty; di[it.id] = (di[it.id] || 0) + qty; }
+      // give back the share of what this line ACTUALLY took off the shelf,
+      // not the share of what it was billed for
+      var share = l.qty ? qty / l.qty : 1;
+      if (it.track) {
+        var back0 = r3((l.took == null ? l.qty : l.took) * share);
+        it.stock = r3((Number(it.stock) || 0) + back0);
+        di[it.id] = (di[it.id] || 0) + back0;
+        if (l.took != null) l.took = r3(l.took - back0);
+      }
       (it.recipe || []).forEach(function (r) {
         var g = ingById(r.ing);
         if (!g) return;
-        var back = (Number(r.qty) || 0) * qty;
-        g.stock = Math.round((g.stock + back) * 1000) / 1000;
-        dn[g.id] = (dn[g.id] || 0) + back;
+        var full = (l.tookIng && l.tookIng[g.id] != null) ? l.tookIng[g.id] : (Number(r.qty) || 0) * l.qty;
+        var back = r3(full * share);
+        g.stock = r3((Number(g.stock) || 0) + back);
+        dn[g.id] = r3((dn[g.id] || 0) + back);
+        if (l.tookIng && l.tookIng[g.id] != null) l.tookIng[g.id] = r3(l.tookIng[g.id] - back);
       });
     }
 
@@ -4145,7 +4555,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     toast(t("Item removed") + " · " + t("Refund") + " " + money(back));
   }
 
-  $("dayPick").addEventListener("change", function (e) { S.salesDay = e.target.value; renderSales(); });
+  $("dayPick").addEventListener("change", function (e) { S.salesDay = e.target.value; S.showAll = false; renderSales(); });
   $("orderList").addEventListener("click", function (e) {
     var rp = e.target.closest("button[data-rp]"), vo = e.target.closest("button[data-vo]");
     var rm = e.target.closest("button[data-rm]");
@@ -4167,20 +4577,20 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       modal('<div class="padded stack"><h3>' + esc(t("Remove item")) + "</h3>" +
         '<p class="hint" style="margin:0">' + esc(label) + " · " + esc(ro.ref) + "</p>" +
         '<div class="fld"><label for="rmQty">' + esc(t("How many to remove?")) + "</label>" +
-        '<input class="big-in" id="rmQty" type="number" min="1" step="1" max="' + rl.qty +
+        '<input class="big-in" id="rmQty" type="text" inputmode="decimal" min="1" step="1" max="' + rl.qty +
         '" value="' + rl.qty + '"></div></div>' +
         '<div class="acts"><button class="btn" id="rmNo" type="button">' + esc(t("Cancel")) + "</button>" +
         '<button class="btn primary danger" id="rmYes" type="button">' + esc(t("Remove")) + "</button></div>");
       $("rmNo").addEventListener("click", closeModal);
       $("rmYes").addEventListener("click", function () {
-        var n = Math.max(1, Math.min(rl.qty, Math.round(Number($("rmQty").value) || 1)));
+        var n = Math.max(1, Math.min(rl.qty, Math.round(num($("rmQty").value, 1e6))));
         closeModal(); doIt(n);
       });
       return;
     }
     if (rp) {
       var o = list.filter(function (x) { return (x.oid || String(x.no)) === rp.dataset.rp; })[0];
-      if (o) showReceipt(o, []);
+      if (o) showReceipt(o, [], false, true);
     }
     if (vo) {
       var ord = list.filter(function (x) { return (x.oid || String(x.no)) === vo.dataset.vo; })[0];
@@ -4197,13 +4607,20 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         ord.lines.forEach(function (l) {
           var it = byId(l.id);
           if (!it) return;
-          if (it.track) { it.stock += l.qty; di[it.id] = (di[it.id] || 0) + l.qty; }
+          // give back exactly what the sale took, which on a short shelf is
+          // less than the quantity sold
+          if (it.track) {
+            var back0 = l.took == null ? l.qty : l.took;
+            it.stock = r3((Number(it.stock) || 0) + back0);
+            di[it.id] = (di[it.id] || 0) + back0;
+          }
           (it.recipe || []).forEach(function (r) {
             var g = ingById(r.ing);
             if (!g) return;
-            var back = (Number(r.qty) || 0) * l.qty;
-            g.stock = Math.round((g.stock + back) * 1000) / 1000;
-            dn[g.id] = (dn[g.id] || 0) + back;
+            var back = (l.tookIng && l.tookIng[g.id] != null)
+              ? l.tookIng[g.id] : (Number(r.qty) || 0) * l.qty;
+            g.stock = r3((Number(g.stock) || 0) + back);
+            dn[g.id] = r3((dn[g.id] || 0) + back);
           });
         });
         ord.upd = Date.now();
@@ -4223,6 +4640,9 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var body = '<div class="l"><span>' + esc(prettyDay(S.salesDay)) + "</span><span></span></div><hr>" +
       '<div class="l"><span>' + esc(t("Orders")) + "</span><span>" + s.n + "</span></div>" +
       '<div class="l"><span>' + esc(t("Items sold")) + "</span><span>" + s.items + "</span></div>" +
+      '<div class="l"><span>' + esc(t("Subtotal")) + "</span><span>" + money(s.sub) + "</span></div>" +
+      '<div class="l"><span>' + esc(t("Average ticket")) + "</span><span>" +
+        money(s.n ? s.gross / s.n : 0) + "</span></div>" +
       '<div class="l"><span>' + esc(t("Cash sales")) + "</span><span>" + money(s.cash) + "</span></div>" +
       '<div class="l"><span>' + esc(t("Card sales")) + "</span><span>" + money(s.card) + "</span></div>" +
       (s.tips ? '<div class="l"><span>' + esc(t("Extra kept")) + "</span><span>" + money(s.tips) + "</span></div>" : "") +
@@ -4238,9 +4658,18 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="l"><span>' + esc(t("Expenses")) + "</span><span></span></div>" +
       (xl.length ? xl.map(function (e) {
         return '<div class="l sm"><span>' + esc(t(e.cat || "Other")) + (e.note ? " · " + esc(e.note) : "") +
-          "</span><span>" + mi() + money(e.amount) + "</span></div>";
+          "</span><span>" + minusSign() + money(e.amount) + "</span></div>";
       }).join("") : '<div class="l sm"><span>—</span><span></span></div>') +
-      '<div class="l"><span>' + esc(t("Cash out")) + "</span><span>" + mi() + money(xc) + "</span></div>" +
+      '<div class="l"><span>' + esc(t("Cash out")) + "</span><span>" + minusSign() + money(xc) + "</span></div>" +
+      (s.refunds ? '<div class="l"><span>' + esc(t("Refunded")) + "</span><span>" + minusSign() + money(s.refunds) + "</span></div>" : "") +
+      (dayPayOut(S.salesDay) ? '<div class="l"><span>' + esc(t("Paid back out")) + "</span><span>" +
+        minusSign() + money(dayPayOut(S.salesDay)) + "</span></div>" : "") +
+      (function () {
+        var cl = (S.cleared || []).filter(function (c) { return dayKey(new Date(c.at)) === S.salesDay; });
+        var ct = cl.reduce(function (a2, c) { return a2 + (Number(c.total) || 0); }, 0);
+        return cl.length ? '<div class="l"><span>' + esc(t("Cleared before paying")) + "</span><span>" +
+          cl.length + " · " + money(ct) + "</span></div>" : "";
+      })() +
       '<div class="l big"><span>' + esc(t("Net income")) + " " + esc(cur()) + "</span><span>" + money(s.gross - xa) + "</span></div>";
     modal('<div class="rcpt"><div class="rh"><div class="n">' + esc(t("Day report")) + "</div>" +
       '<div class="s">El Empratour</div></div>' + body + "</div>" +
@@ -4257,7 +4686,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     // money goes out as a plain number — a thousands separator makes Excel
     // read the cell as text, and then nothing in the column adds up
     function cn(n) { return r2(n); }
-    var rows = [["Order","Time","Type","Table","Cashier","Customer","Payment","Currency","Received","Rate","Void","Item","Extras","Qty","Unit","Amount","Discount","Service","VAT","Order total","Extra","Refunded"]];
+    var rows = [["Order","Time","Shift","Type","Table","Cashier","Customer","Payment","Currency","Received","Rate","Void","Item","Extras","Qty","Unit","Amount","Discount","Service","VAT","Order total","Extra","Refunded","Label"]];
     // a check emptied by taking its last item off has no lines left. without
     // this it would vanish from the file completely, and the money that went
     // back to the customer would appear nowhere at all
@@ -4270,7 +4699,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     }
     orders.slice().reverse().forEach(function (o) {
       exportLines(o).forEach(function (l, ix) {
-        rows.push([o.ref, o.time, o.type, o.table || "", o.by || "", o.cust ? o.cust.name + " " + o.cust.phone : "",
+        rows.push([o.ref, o.time, o.shift || "", o.type, o.table || "", o.by || "", o.cust ? o.cust.name + " " + o.cust.phone : "",
           o.pay || "", o.fx ? o.fx.cur : "EGP", o.fx && ix === 0 ? o.fx.amt : "", o.fx ? o.fx.rate : "",
           o.void ? "VOID" : "", l.name,
           (l.opts || []).map(function (x) { return x.name; }).join(" / "),
@@ -4284,14 +4713,18 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     // "Order total" + "Extra" adds up to exactly the day's gross — the same
     // figure the screen and the Excel workbook show
     var sv = sums(orders);
+    var H2 = rows[0];
+    var iTot = H2.indexOf("Order total"), iEx = H2.indexOf("Extra"),
+        iRf = H2.indexOf("Refunded"), iLb = H2.indexOf("Label");
+    function blank() { var r = []; while (r.length < H2.length) r.push(""); return r; }
     rows.push([]);
-    var tot = [];
-    while (tot.length < 19) tot.push("");
-    tot[18] = "TOTALS"; tot[19] = cn(sv.gross - sv.tips); tot[20] = cn(sv.tips); tot[21] = cn(sv.refunds);
+    // the label goes in its OWN column, so no money column is ever turned
+    // into text and every one of them still adds up
+    var tot = blank();
+    tot[iLb] = "TOTALS"; tot[iTot] = cn(sv.gross - sv.tips); tot[iEx] = cn(sv.tips); tot[iRf] = cn(sv.refunds);
     rows.push(tot);
-    var gl = [];
-    while (gl.length < 19) gl.push("");
-    gl[18] = "GROSS (void excluded)"; gl[19] = cn(sv.gross);
+    var gl = blank();
+    gl[iLb] = "GROSS (void excluded)"; gl[iTot] = cn(sv.gross);
     rows.push(gl);
     var xl2 = dayExpenses(S.salesDay);
     if (xl2.length) {
@@ -4310,7 +4743,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
       }).join(",");
     }).join("\r\n");
-    offerFile("empratour-sales-" + S.salesDay + ".csv", csv);
+    offerFile("Empratour-sales-" + S.salesDay + ".csv", csv);
   });
 
   function offerFile(filename, data) {
@@ -4342,6 +4775,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     $("setVat").value = S.settings.vat;
     $("setLow").value = S.settings.low;
     $("setDisc").value = S.settings.discAuth;
+    // a VAT-registered business handing out invoices with no registration
+    // number on them is a problem the app should not let pass quietly
+    var tw = $("taxWarn");
+    if (tw) tw.hidden = !!(S.settings.taxNo || "").trim();
     $("setPts").value = S.settings.ptsPer;
     FXC.forEach(function (c) { $("fx" + c).value = fxRate(c); });
     renderMenuRows(); renderGroups(); renderIngs(); renderTableList(); renderStaff(); renderCloud(); renderXls();
@@ -4368,7 +4805,21 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         '<button type="button" id="xlsNow">' + esc(t("Save today now")) + "</button>" +
         (canDir ? '<button type="button" id="xlsPick">' + esc(t("Choose a folder")) + "</button>" : "") +
         (xlsDir ? '<button type="button" id="xlsClear">' + esc(t("Use Downloads")) + "</button>" : "") +
+      "</div>" +
+      '<hr style="border:0;border-top:1px solid var(--line);margin:6px 0">' +
+      '<p class="eyebrow" style="margin:0">' + esc(t("Month report")) + "</p>" +
+      '<p class="hint" style="margin:0">' + esc(t("One workbook for the whole month: every day in a row, what sold, the expenses and every shift. It is saved and emailed by itself on the last day of the month.")) + "</p>" +
+      '<dl class="kv"><dt>' + esc(t("This month")) + "</dt><dd>" + esc(monthName(monthKey())) + " · " +
+        monthDays(monthKey()).length + " " + esc(t("days")) + "</dd>" +
+        "<dt>" + esc(t("Last month sent")) + "</dt><dd>" + esc(monthSentLabel()) + "</dd></dl>" +
+      '<div class="t-tools" style="max-width:420px">' +
+        '<button type="button" id="monthMail">' + esc(t("Send this month")) + "</button>" +
+        '<button type="button" id="monthNow">' + esc(t("Save this month now")) + "</button>" +
+        '<button type="button" id="monthPrev">' + esc(t("Last month")) + "</button>" +
       "</div></div>";
+    $("monthNow").addEventListener("click", function () { saveMonthXls(monthKey()); });
+    $("monthPrev").addEventListener("click", function () { saveMonthXls(prevMonth()); });
+    $("monthMail").addEventListener("click", function () { sendMonth(monthKey()); });
     $("xlsAuto").addEventListener("click", function (e) {
       var b = e.target.closest("button[data-a]");
       if (!b) return;
@@ -4511,21 +4962,24 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
   FXC.forEach(function (c) {
     $("fx" + c).addEventListener("change", function (e) {
-      S.settings.fx[c] = Math.max(0, Number(e.target.value) || 0);
+      S.settings.fx[c] = Math.max(0, num(e.target.value, 100000));
       saveConfig(); toast(t("Saved"));
     });
   });
   ["setCur","setTax","setSrv","setVat","setLow","setDisc","setPts"].forEach(function (id) {
     $(id).addEventListener("change", function (e) {
+      if (!needs("setup")) { renderSetup(); return; }
       var v = e.target.value;
-      if (id === "setCur") S.settings.currency = v.trim() || "EGP";
-      if (id === "setTax") S.settings.taxNo = v.trim();
-      if (id === "setSrv") S.settings.service = Math.max(0, Number(v) || 0);
-      if (id === "setVat") S.settings.vat = Math.max(0, Number(v) || 0);
-      if (id === "setLow") S.settings.low = Math.max(0, Math.round(Number(v) || 0));
-      if (id === "setDisc") S.settings.discAuth = Math.max(0, Math.round(Number(v) || 0));
-      if (id === "setPts") S.settings.ptsPer = Math.max(1, Math.round(Number(v) || 50));
-      saveConfig(); renderTicket(); toast(t("Saved"));
+      // percentages are percentages: a service charge of 1e15 used to be
+      // accepted and then quietly wrecked every total on the shift screen
+      if (id === "setCur") S.settings.currency = v.trim().slice(0, 8) || "EGP";
+      if (id === "setTax") S.settings.taxNo = v.trim().slice(0, 40);
+      if (id === "setSrv") S.settings.service = Math.min(100, Math.max(0, num(v, 100)));
+      if (id === "setVat") S.settings.vat = Math.min(100, Math.max(0, num(v, 100)));
+      if (id === "setLow") S.settings.low = Math.max(0, Math.round(num(v, 100000)));
+      if (id === "setDisc") S.settings.discAuth = Math.min(100, Math.max(0, Math.round(num(v, 100))));
+      if (id === "setPts") S.settings.ptsPer = Math.max(1, Math.round(num(v, 100000)));
+      saveConfig(); renderSetup(); renderTicket(); toast(t("Saved"));
     });
   });
 
@@ -4547,6 +5001,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     }).join("") || '<div class="empty">—</div>';
   }
   $("menuRows").addEventListener("click", function (e) {
+    if (!needs("setup")) return;
     var b = e.target.closest("[data-edit]");
     if (b) itemEditor(byId(b.dataset.edit));
   });
@@ -4563,16 +5018,16 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       esc(t("Every one of them starts at this quantity. Correct the real numbers afterwards on the Stock tab.")) + "</p>" +
       '<div class="grid2">' +
         '<div class="fld"><label for="baStock">' + esc(t("In stock")) + "</label>" +
-        '<input class="big-in" id="baStock" type="number" min="0" step="1" value="20"></div>' +
+        '<input class="big-in" id="baStock" type="text" inputmode="decimal" min="0" step="1" value="20"></div>' +
         '<div class="fld"><label for="baLow">' + esc(t("Low at")) + "</label>" +
-        '<input class="big-in" id="baLow" type="number" min="0" step="1" value="' + (Number(S.settings.low) || 5) + '"></div>' +
+        '<input class="big-in" id="baLow" type="text" inputmode="decimal" min="0" step="1" value="' + (Number(S.settings.low) || 5) + '"></div>' +
       "</div></div>" +
       '<div class="acts"><button class="btn" id="baNo" type="button">' + esc(t("Cancel")) + "</button>" +
       '<button class="btn primary" id="baYes" type="button">' + esc(t("Apply")) + "</button></div>");
     $("baNo").addEventListener("click", closeModal);
     $("baYes").addEventListener("click", function () {
-      var qty = Math.max(0, Math.round(Number($("baStock").value) || 0));
-      var low = Math.max(0, Math.round(Number($("baLow").value) || 0));
+      var qty = Math.max(0, Math.round(num($("baStock").value, 1e6)));
+      var low = Math.max(0, Math.round(num($("baLow").value, 1e6)));
       var deltas = {};
       list.forEach(function (it) {
         var before = it.track ? (Number(it.stock) || 0) : 0;
@@ -4612,7 +5067,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         esc(t("Percent of the menu price")) + "</button>" +
       '<button type="button" data-k="amt" aria-pressed="false">' + esc(t("Same amount for all")) + "</button>" +
       '<button type="button" data-k="off" aria-pressed="false">' + esc(t("Remove")) + "</button></div>" +
-      '<input class="big-in" id="taVal" type="number" min="0" step="1" value="90"></div>' +
+      '<input class="big-in" id="taVal" type="text" inputmode="decimal" min="0" step="1" value="90"></div>' +
       '<div class="acts"><button class="btn" id="taNo" type="button">' + esc(t("Cancel")) + "</button>" +
       '<button class="btn primary" id="taYes" type="button">' + esc(t("Apply")) + "</button></div>");
     var kind = "pct";
@@ -4627,7 +5082,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     });
     $("taNo").addEventListener("click", closeModal);
     $("taYes").addEventListener("click", function () {
-      var v = Math.max(0, Number($("taVal").value) || 0);
+      var v = Math.max(0, num($("taVal").value, 1000000));
       list.forEach(function (it) {
         if (kind === "off") it.tp = 0;
         else if (kind === "amt") it.tp = v;
@@ -4640,9 +5095,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     setTimeout(function () { var el = $("taVal"); if (el) { el.focus(); el.select(); } }, 50);
   });
   $("addItemBtn").addEventListener("click", function () {
+    if (!needs("setup")) return;
     var it = { id: "i" + uid(), name: "New item", ar: "", cat: S.cat === "All" ? CATS[0] : S.cat,
       price: 0, tp: 0, track: false, stock: 0, low: S.settings.low, grp: "", recipe: [], active: true, sort: S.menu.length };
-    S.menu.push(it); saveMenu(); itemEditor(it);
+    S.menu.push(it); dropIx(); saveMenu(); itemEditor(it);
   });
 
   function itemEditor(it) {
@@ -4658,13 +5114,13 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           '<div class="fld"><label>' + esc(t("Category")) + '</label><select id="eCat">' +
             cats.map(function (c) { return '<option value="' + esc(c) + '"' + (c === it.cat ? " selected" : "") + ">" + esc(t(c)) + "</option>"; }).join("") +
           "</select></div>" +
-          '<div class="fld"><label>' + esc(t("Price")) + '</label><input id="ePrice" type="number" min="0" step="1" value="' + it.price + '"></div>' +
-          '<div class="fld"><label>' + esc(t("Takeaway price")) + '</label><input id="eTp" type="number" min="0" step="1" value="' + (Number(it.tp) || 0) + '"></div>' +
+          '<div class="fld"><label>' + esc(t("Price")) + '</label><input id="ePrice" type="text" inputmode="decimal" min="0" step="1" value="' + it.price + '"></div>' +
+          '<div class="fld"><label>' + esc(t("Takeaway price")) + '</label><input id="eTp" type="text" inputmode="decimal" min="0" step="1" value="' + (Number(it.tp) || 0) + '"></div>' +
           '<div class="fld"><label>' + esc(t("Stock")) + '</label><select id="eTrack">' +
             '<option value="1"' + (it.track ? " selected" : "") + ">" + esc(t("Track stock")) + "</option>" +
             '<option value="0"' + (!it.track ? " selected" : "") + ">" + esc(t("Not tracked")) + "</option></select></div>" +
-          '<div class="fld"><label>' + esc(t("In stock")) + '</label><input id="eStock" type="number" min="0" step="1" value="' + (it.stock || 0) + '"></div>' +
-          '<div class="fld"><label>' + esc(t("Low at")) + '</label><input id="eLow" type="number" min="0" step="1" value="' + (it.low == null ? S.settings.low : it.low) + '"></div>' +
+          '<div class="fld"><label>' + esc(t("In stock")) + '</label><input id="eStock" type="text" inputmode="decimal" min="0" step="1" value="' + (it.stock || 0) + '"></div>' +
+          '<div class="fld"><label>' + esc(t("Low at")) + '</label><input id="eLow" type="text" inputmode="decimal" min="0" step="1" value="' + (it.low == null ? S.settings.low : it.low) + '"></div>' +
           '<div class="fld"><label>' + esc(t("Options")) + '</label><select id="eGrp">' +
             '<option value="">' + esc(t("None")) + "</option>" +
             S.groups.map(function (g) { return '<option value="' + g.id + '"' + (it.grp === g.id ? " selected" : "") + ">" + esc(nm(g)) + "</option>"; }).join("") +
@@ -4682,7 +5138,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           return '<div class="linerow"><select data-ri="' + ix + '">' +
             S.ings.map(function (g) { return '<option value="' + g.id + '"' + (g.id === r.ing ? " selected" : "") + ">" + esc(nm(g)) + "</option>"; }).join("") +
             "</select>" +
-            '<input type="number" step="0.01" min="0" value="' + r.qty + '" data-rq="' + ix + '">' +
+            '<input type="text" inputmode="decimal" step="0.01" min="0" value="' + r.qty + '" data-rq="' + ix + '">' +
             '<span class="hint">' + esc((ingById(r.ing) || {}).unit || "") + "</span>" +
             '<button class="del" type="button" data-rd="' + ix + '">✕</button></div>';
         }).join("") : '<div class="hint">—</div>';
@@ -4695,7 +5151,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       $("recList").addEventListener("change", function (e) {
         var a = e.target.closest("[data-ri]"), b = e.target.closest("[data-rq]");
         if (a) recipe[+a.dataset.ri].ing = a.value;
-        if (b) recipe[+b.dataset.rq].qty = Math.max(0, Number(b.value) || 0);
+        if (b) recipe[+b.dataset.rq].qty = Math.max(0, num(b.value, 10000));
         drawRec();
       });
       $("recList").addEventListener("click", function (e) {
@@ -4705,7 +5161,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       });
       $("eNo").addEventListener("click", closeModal);
       $("eDel").addEventListener("click", function () {
-        S.menu = S.menu.filter(function (x) { return x.id !== it.id; });
+        S.menu = S.menu.filter(function (x) { return x.id !== it.id; }); dropIx();
         S.cart = S.cart.filter(function (l) { return l.id !== it.id; });
     // a held check still holding this item would price it at zero on recall
     S.parked.forEach(function (pk) {
@@ -4719,18 +5175,18 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         toast(nm(it) + " — " + t("removed"));
       });
       $("eYes").addEventListener("click", function () {
-        it.name = $("eName").value.trim() || it.name;
-        it.ar = $("eAr").value.trim();
+        it.name = $("eName").value.trim().slice(0, 80) || it.name;
+        it.ar = $("eAr").value.trim().slice(0, 80);
         it.cat = $("eCat").value;
-        it.price = Math.max(0, Number($("ePrice").value) || 0);
-        it.tp = Math.max(0, Number($("eTp").value) || 0);
+        it.price = Math.max(0, num($("ePrice").value, 1000000));
+        it.tp = Math.max(0, num($("eTp").value, 1000000));
         var before = Number(it.stock) || 0;
         it.track = $("eTrack").value === "1";
-        it.low = Math.max(0, Math.round(Number($("eLow").value) || 0));
+        it.low = Math.max(0, Math.round(num($("eLow").value, 100000)));
         if (it.track && !it.low) it.low = Number(S.settings.low) || 5;
         it.grp = $("eGrp").value;
         it.recipe = recipe.filter(function (r) { return r.ing && r.qty > 0; });
-        var want = it.track ? Math.max(0, Math.round(Number($("eStock").value) || 0)) : 0;
+        var want = it.track ? Math.max(0, Math.round(num($("eStock").value, 1000000))) : 0;
         it.stock = before;
         saveMenu(); stockSet("item", it.id, want); closeModal();
         renderSetup(); renderCats(); renderItems(); updateBadges();
@@ -4751,7 +5207,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           return '<div class="linerow" style="padding-inline-start:18px">' +
             '<input data-of="name" data-i="' + ix + '" value="' + esc(o.name) + '">' +
             '<input data-of="ar" data-i="' + ix + '" dir="rtl" value="' + esc(o.ar || "") + '">' +
-            '<input data-of="price" data-i="' + ix + '" type="number" step="1" value="' + (o.price || 0) + '">' +
+            '<input data-of="price" data-i="' + ix + '" type="text" inputmode="decimal" step="1" value="' + (o.price || 0) + '">' +
             '<button class="del" type="button" data-odel="' + ix + '">✕</button></div>';
         }).join("") +
         '<button class="btn sm" type="button" data-oadd="' + g.id + '" style="margin:8px 0 4px">' + esc(t("Add")) + "</button>" +
@@ -4771,8 +5227,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (gf) g[gf.dataset.gf] = gf.value;
     if (of) {
       var o = g.opts[+of.dataset.i];
-      if (of.dataset.of === "price") o.price = Number(of.value) || 0;
-      else o[of.dataset.of] = of.value;
+      if (of.dataset.of === "price") o.price = Math.max(0, num(of.value, 1000000));
+      else o[of.dataset.of] = String(of.value).slice(0, 120);
     }
     saveMenu(); toast(t("Saved"));
   });
@@ -4792,13 +5248,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         '<input data-nf="name" value="' + esc(g.name) + '">' +
         '<input data-nf="ar" dir="rtl" value="' + esc(g.ar || "") + '">' +
         '<input data-nf="unit" value="' + esc(g.unit || "") + '">' +
-        '<input data-nf="low" type="number" step="0.1" value="' + (g.low || 0) + '">' +
-        '<input data-nf="cost" type="number" step="1" value="' + (g.cost || 0) + '">' +
+        '<input data-nf="low" type="text" inputmode="decimal" step="0.1" value="' + (g.low || 0) + '">' +
+        '<input data-nf="cost" type="text" inputmode="decimal" step="1" value="' + (g.cost || 0) + '">' +
         '<button class="del" type="button" data-ndel="' + g.id + '">✕</button></div>';
     }).join("") : '<div class="hint">—</div>') + "</div>";
   }
   $("addIngBtn").addEventListener("click", function () {
-    S.ings.push({ id: "n" + uid(), name: "New ingredient", ar: "", unit: "kg", stock: 0, low: 0, cost: 0 });
+    if (!needs("setup")) return;
+    S.ings.push({ id: "n" + uid(), name: "New ingredient", ar: "", unit: "kg", stock: 0, low: 0, cost: 0 }); dropIx();
     saveMenu(); renderIngs();
   });
   $("ingList").addEventListener("change", function (e) {
@@ -4806,14 +5263,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (!w) return;
     var g = ingById(w.dataset.n), f = e.target.closest("[data-nf]");
     if (!g || !f) return;
-    if (f.dataset.nf === "low" || f.dataset.nf === "cost") g[f.dataset.nf] = Number(f.value) || 0;
-    else g[f.dataset.nf] = f.value;
+    if (f.dataset.nf === "low" || f.dataset.nf === "cost") g[f.dataset.nf] = Math.max(0, num(f.value, 1000000));
+    else g[f.dataset.nf] = String(f.value).slice(0, 120);
     saveMenu(); toast(t("Saved"));
   });
   $("ingList").addEventListener("click", function (e) {
     var d = e.target.closest("[data-ndel]");
     if (!d) return;
-    S.ings = S.ings.filter(function (x) { return x.id !== d.dataset.ndel; });
+    S.ings = S.ings.filter(function (x) { return x.id !== d.dataset.ndel; }); dropIx();
     saveMenu(); renderIngs();
   });
 
@@ -4825,16 +5282,28 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     }).join("") || '<div class="hint">—</div>';
   }
   $("addTableBtn").addEventListener("click", function () {
-    S.tables.push({ id: "x" + uid(), name: "T" + (S.tables.length + 1) });
+    if (!needs("setup")) return;
+    var n5 = S.tables.length + 1;
+    while (S.tables.some(function (x) { return x.name === "T" + n5; })) n5 += 1;
+    S.tables.push({ id: "x" + uid(), name: "T" + n5 });
     saveTableList(); renderTableList();
   });
   $("tableList").addEventListener("change", function (e) {
+    if (!needs("setup")) return;
     var w = e.target.closest("[data-tb]");
     if (!w) return;
     var x = S.tables.filter(function (y) { return y.id === w.dataset.tb; })[0];
-    if (x) { x.name = e.target.value.trim() || x.name; saveTableList(); toast(t("Saved")); }
+    if (!x) return;
+    var nn = e.target.value.trim().slice(0, 24);
+    if (!nn) { renderTableList(); return; }
+    // two tables called T1 means a bill that cannot be found on the floor
+    if (S.tables.some(function (y) { return y.id !== x.id && y.name === nn; })) {
+      toast(t("Another table already has that name."), true); renderTableList(); return;
+    }
+    x.name = nn; saveTableList(); toast(t("Saved"));
   });
   $("tableList").addEventListener("click", function (e) {
+    if (!needs("setup")) return;
     var d = e.target.closest("[data-tdel]");
     if (!d) return;
     S.tables = S.tables.filter(function (x) { return x.id !== d.dataset.tdel; });
@@ -4855,12 +5324,13 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     }).join("");
   }
   $("staffRows").addEventListener("change", function (e) {
+    if (!needsMgr()) return;
     var f = e.target.closest("[data-s]");
     if (!f) return;
     var u = staffById(f.closest(".staffrow").dataset.u);
     if (!u) return;
     var k = f.dataset.s;
-    if (k === "name") u.name = f.value.trim() || u.name;
+    if (k === "name") u.name = f.value.trim().slice(0, 60) || u.name;
     if (k === "role") {
       if (S.me && u.id === S.me.id && f.value !== "manager") {
         var others = S.staff.filter(function (x) { return x.role === "manager" && x.id !== u.id; });
@@ -4883,6 +5353,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     // still typing in the next field
   });
   $("staffRows").addEventListener("click", function (e) {
+    if (!needsMgr()) return;
     var b = e.target.closest("button[data-du]");
     if (!b) return;
     var u = staffById(b.dataset.du);
@@ -4892,15 +5363,23 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     toast(u.name + " — " + t("removed"));
   });
   $("addStaffBtn").addEventListener("click", function () {
-    S.staff.push({ id: "u" + uid(), name: "New employee", role: "cashier", pin: hashPin(String(1000 + S.staff.length)) });
+    if (!needsMgr()) return;
+    // walk until we find a PIN nobody already has: deleting an employee and
+    // adding another used to hand out a duplicate, and then the second
+    // person's sales were booked to the first
+    var n4 = 1000 + S.staff.length, tries = 0;
+    while (tries++ < 9000 && S.staff.some(function (u) { return u.pin === hashPin(String(n4)); })) n4 += 1;
+    S.staff.push({ id: "u" + uid(), name: "New employee", role: "cashier", pin: hashPin(String(n4)) });
     saveStaff(); renderStaff();
     toast(t("Set a name and a 4-digit PIN for the new employee."));
   });
 
   $("backupBtn").addEventListener("click", function () {
-    offerFile("empratour-backup-" + dayKey() + ".json", JSON.stringify(snapshot(), null, 2));
+    // the backup file carries every PIN hash and every price
+    if (!needsMgr()) return;
+    offerFile("Empratour-backup-" + dayKey() + ".json", JSON.stringify(snapshot(), null, 2));
   });
-  $("restoreBtn").addEventListener("click", function () { $("restoreFile").click(); });
+  $("restoreBtn").addEventListener("click", function () { if (!needsMgr()) return; $("restoreFile").click(); });
   $("restoreFile").addEventListener("change", function (e) {
     var f = e.target.files && e.target.files[0];
     if (!f) return;
@@ -5127,6 +5606,57 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     return { f: "SUM(" + col + from + ":" + col + to + ")", v: cached, s: 3 };
   }
   function r2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+  function r3(n) { return Math.round((Number(n) || 0) * 1000) / 1000; }
+
+  /* Reading a number the way an Egyptian tablet actually gets one.
+     "\u0661\u0662\u0663" typed on an Arabic keyboard, "1,5" with a comma for a decimal
+     point, a stray space, a pasted "1 234.50" — every one of these used to
+     fall through "Number(v) || 0" and silently become ZERO. On a price or a
+     stock level that is not a rounding error, it is a wiped record. */
+  var AR_DIGITS = /[\u0660-\u0669\u06f0-\u06f9]/g;
+  var AR_ONE = /[\u0660-\u0669\u06f0-\u06f9]/;   // .test on a /g regex is stateful
+  function asciiDigits(v) {
+    return String(v == null ? "" : v).replace(AR_DIGITS, function (c) {
+      var x = c.charCodeAt(0);
+      return String(x >= 0x6f0 ? x - 0x6f0 : x - 0x660);
+    });
+  }
+  function num(v, max) {
+    var t2 = asciiDigits(v)
+      .replace(/[\u066b\u066c]/g, ".")        // Arabic decimal / thousands marks
+      .replace(/\s|\u00a0/g, "")
+      .replace(/,(?=\d{3}\b)/g, "")           // 1,234 -> 1234
+      .replace(/,/g, ".");                    // 1,5 -> 1.5
+    var n = Number(t2);
+    if (!isFinite(n)) return 0;
+    var cap = max == null ? 1e9 : max;        // nothing in a restaurant is a billion
+    if (n > cap) return cap;
+    if (n < -cap) return -cap;
+    return n;
+  }
+  // and make the keyboard cooperate: type an Arabic digit anywhere and an
+  // ASCII one lands in the box, because <input type="text" inputmode="decimal"> simply drops
+  // characters it cannot parse and the field goes blank.
+  document.addEventListener("keydown", function (e) {
+    var el = e.target;
+    if (!el || el.tagName !== "INPUT") return;
+    // only the number boxes: a name or a note is free text and stays as typed
+    var im = (el.getAttribute("inputmode") || "").toLowerCase();
+    if (el.type !== "number" && im !== "decimal" && im !== "numeric") return;
+    var k = e.key;
+    if (!k || k.length !== 1) return;
+    var rep = null;
+    if (AR_ONE.test(k)) rep = asciiDigits(k);
+    else if (k === "," || k === "\u066b") rep = ".";
+    if (rep === null) return;
+    e.preventDefault();
+    try {
+      var a2 = el.selectionStart, b2 = el.selectionEnd, v = el.value;
+      if (a2 == null) { el.value = v + rep; }
+      else { el.value = v.slice(0, a2) + rep + v.slice(b2); el.selectionStart = el.selectionEnd = a2 + rep.length; }
+    } catch (e2) { el.value = el.value + rep; }
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  }, true);
 
   function dayWorkbook(k) {
     var orders = (S.sales[k] || []).slice().reverse();      // oldest first reads better
@@ -5192,27 +5722,38 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       sum.push([r.no, r.by, r.closedBy, M(r2(r.float)), M(r2(r.expected)), M(r2(r.counted)), M(r2(r.diff))]);
     });
     else sum.push(["—"]);
+    // a shift still running has no counted drawer yet; without this row the
+    // table reads as if it covered the whole day
+    if (S.shift && dayKey(new Date(S.shift.openedAt)) === k) {
+      sum.push([S.shift.no, S.shift.by, t("still open"), M(r2(S.shift.float)), "", "", ""]);
+    }
 
     /* ---- Orders ---- */
     var oh = [t("Order"), t("Time"), t("Shift"), t("Type"), t("Table"), t("Cashier"), t("Customer"),
       t("Paid by"), t("Currency"), t("Received"), t("Rate"), t("Voided"), t("Item"), t("Extras"),
       t("Kitchen note"), t("Quantity"), t("Price"), t("Amount"), t("Discount"), t("Service"),
-      t("VAT"), t("Total"), t("Extra")];
+      t("VAT"), t("Total"), t("Extra"), t("Refunded"), t("Removed after printing")];
     var orows = [oh.map(H)];
-    var firstData = 2, amtTotal = 0, totTotal = 0, tipTotal = 0;
+    var firstData = 2, amtTotal = 0, totTotal = 0, tipTotal = 0, refTotal = 0;
     // a check emptied by removing its last item keeps a row here too, built
     // from what was taken off it, so nothing ever disappears from the book
     function xlLines(o) {
-      if (o.lines && o.lines.length) return o.lines;
-      return (o.removed || []).map(function (rm) {
-        return { name: rm.name + " — " + t("removed"), ar: (rm.ar || rm.name) + " — " + t("removed"),
-                 opts: [], note: "", qty: rm.qty, unit: rm.qty ? r2(rm.amount / rm.qty) : 0, amount: rm.amount };
+      // what is still on the check, PLUS what was taken off it. a line removed
+      // from a paid check used to appear nowhere on this sheet at all, so the
+      // book and the CSV disagreed about the same order.
+      var out = (o.lines || []).slice();
+      (o.removed || []).forEach(function (rm) {
+        out.push({ name: rm.name + " — " + t("removed"), ar: (rm.ar || rm.name) + " — " + t("removed"),
+                   opts: [], note: rm.by ? t("Edited by") + " " + rm.by : "", qty: rm.qty,
+                   unit: rm.qty ? r2(rm.amount / rm.qty) : 0, amount: 0, gone: true });
       });
+      return out;
     }
     live.concat(orders.filter(function (o) { return o.void; })).forEach(function (o) {
       xlLines(o).forEach(function (l, ix) {
-        amtTotal += o.void ? 0 : l.amount;
+        amtTotal += (o.void || l.gone) ? 0 : l.amount;
         if (ix === 0 && !o.void) { totTotal += o.total; tipTotal += (Number(o.tip) || 0); }
+        if (ix === 0) refTotal += (Number(o.refund) || 0);
         orows.push([
           o.ref, o.time, o.shift || "", t(o.type), o.table || "", o.by || "",
           o.cust ? o.cust.name + " " + o.cust.phone : "",
@@ -5221,10 +5762,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           o.void ? t("Voided") : "",
           LANG === "ar" && l.ar ? l.ar : l.name,
           (l.opts || []).map(function (x) { return LANG === "ar" && x.ar ? x.ar : x.name; }).join(" / "),
-          l.note || "", l.qty, M(r2(l.unit)), o.void ? "" : M(r2(l.amount)),
+          l.note || "", l.qty, M(r2(l.unit)), (o.void || l.gone) ? "" : M(r2(l.amount)),
           ix === 0 && !o.void ? M(r2(o.disc || 0)) : "", ix === 0 && !o.void ? M(r2(o.service)) : "",
           ix === 0 && !o.void ? M(r2(o.vat)) : "", ix === 0 && !o.void ? M(r2(o.total)) : "",
-          ix === 0 && !o.void && o.tip ? M(r2(o.tip)) : ""
+          ix === 0 && !o.void && o.tip ? M(r2(o.tip)) : "",
+          ix === 0 && o.refund ? M(r2(o.refund)) : "",
+          l.gone ? t("Yes") : ""
         ]);
       });
     });
@@ -5235,6 +5778,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       tot[17] = sumF("R", firstData, lastRow, r2(amtTotal));
       tot[21] = sumF("V", firstData, lastRow, r2(totTotal));
       tot[22] = sumF("W", firstData, lastRow, r2(tipTotal));
+      tot[23] = sumF("X", firstData, lastRow, r2(refTotal));
       orows.push(tot);
     }
 
@@ -5243,8 +5787,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     live.forEach(function (o) {
       o.lines.forEach(function (l) {
         var it = byId(l.id);
-        var key = l.name || l.id;
-        if (!agg[key]) agg[key] = { ar: l.ar || "", cat: it ? it.cat : "", qty: 0, amt: 0 };
+        var key = l.id || l.name;
+        if (!agg[key]) agg[key] = { nm: l.name || "", ar: l.ar || "", cat: it ? it.cat : "", qty: 0, amt: 0 };
         agg[key].qty += l.qty; agg[key].amt += l.amount;
       });
     });
@@ -5253,7 +5797,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var qSum = 0, aSum = 0;
     keys.forEach(function (n) {
       qSum += agg[n].qty; aSum += agg[n].amt;
-      irows.push([n, agg[n].ar, t(agg[n].cat), agg[n].qty, M(r2(agg[n].amt))]);
+      irows.push([agg[n].nm, agg[n].ar, t(agg[n].cat), agg[n].qty, M(r2(agg[n].amt))]);
     });
     if (keys.length) {
       irows.push([B(t("Total")), "", "", { f: "SUM(D2:D" + (keys.length + 1) + ")", v: qSum, s: 1 },
@@ -5359,6 +5903,159 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     return blobDownload(name, blob);
   }
 
+  /* ============ the month's book ============
+     Four sheets: a day-by-day table the owner can read down at a glance, a
+     summary of the whole month, what sold across it, and where the money
+     went. Every total is a real SUM formula, so editing a day recalculates. */
+  function monthKey(d) {
+    d = d || new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  }
+  function monthDays(mk) {
+    return Object.keys(S.sales).filter(function (k) { return k.indexOf(mk + "-") === 0; }).sort();
+  }
+  function monthName(mk) {
+    var p2 = mk.split("-"), d = new Date(+p2[0], +p2[1] - 1, 1);
+    return ltr(mon(d) + " " + d.getFullYear());
+  }
+  function monthWorkbook(mk) {
+    var days = monthDays(mk), cu = cur();
+
+    /* ---- Day by day ---- */
+    var dh = [t("Day"), t("Orders"), t("Items sold"), t("Subtotal"), t("Discounts"),
+      t("Service"), t("VAT"), t("Extra"), t("Gross") + " " + cu, t("Cash sales"), t("Card sales"),
+      t("Refunded"), t("Voided"), t("Expenses"), t("Net income") + " " + cu];
+    var drows = [dh.map(H)];
+    var T = { n: 0, items: 0, sub: 0, disc: 0, srv: 0, vat: 0, tips: 0, gross: 0,
+              cash: 0, card: 0, refunds: 0, voids: 0, exp: 0, net: 0 };
+    days.forEach(function (k) {
+      var sm = sums(S.sales[k] || []);
+      var xa = sumExp(dayExpenses(k));
+      var net = sm.gross - xa;
+      T.n += sm.n; T.items += sm.items; T.sub += sm.sub; T.disc += sm.disc;
+      T.srv += sm.srv; T.vat += sm.vat; T.tips += sm.tips; T.gross += sm.gross;
+      T.cash += sm.cash; T.card += sm.card; T.refunds += sm.refunds; T.voids += sm.voids;
+      T.exp += xa; T.net += net;
+      drows.push([k, sm.n, sm.items, M(r2(sm.sub)), M(r2(sm.disc)), M(r2(sm.srv)), M(r2(sm.vat)),
+        M(r2(sm.tips)), BM(r2(sm.gross)), M(r2(sm.cash)), M(r2(sm.card)), M(r2(sm.refunds)),
+        sm.voids, M(r2(xa)), BM(r2(net))]);
+    });
+    var first = 2, last = drows.length;
+    if (days.length) {
+      drows.push([B(t("Total")), sumF("B", first, last, T.n), sumF("C", first, last, T.items),
+        sumF("D", first, last, r2(T.sub)), sumF("E", first, last, r2(T.disc)),
+        sumF("F", first, last, r2(T.srv)), sumF("G", first, last, r2(T.vat)),
+        sumF("H", first, last, r2(T.tips)), sumF("I", first, last, r2(T.gross)),
+        sumF("J", first, last, r2(T.cash)), sumF("K", first, last, r2(T.card)),
+        sumF("L", first, last, r2(T.refunds)), sumF("M", first, last, T.voids),
+        sumF("N", first, last, r2(T.exp)), sumF("O", first, last, r2(T.net))]);
+    } else drows.push(["\u2014"]);
+
+    /* ---- Summary ---- */
+    var busiest = null, quietest = null;
+    days.forEach(function (k) {
+      var g = sums(S.sales[k] || []).gross;
+      if (!busiest || g > busiest[1]) busiest = [k, g];
+      if (!quietest || g < quietest[1]) quietest = [k, g];
+    });
+    var sum = [
+      [B("EL EMPRATOUR \u2014 " + t("Month report")), "", "", B(monthName(mk))],
+      [],
+      [H(t("Sales")), H(cu)],
+      [t("Days traded"), days.length],
+      [t("Orders"), T.n],
+      [t("Items sold"), T.items],
+      [t("Subtotal"), M(r2(T.sub))],
+      [t("Discounts"), M(r2(T.disc))],
+      [t("Service"), M(r2(T.srv))],
+      [t("VAT"), M(r2(T.vat))],
+      [t("Extra kept"), M(r2(T.tips))],
+      [B(t("Gross")), BM(r2(T.gross))],
+      [],
+      [t("Cash sales"), M(r2(T.cash))],
+      [t("Card sales"), M(r2(T.card))],
+      [t("Refunded"), M(r2(T.refunds))],
+      [t("Voided"), T.voids],
+      [],
+      [t("Expenses"), M(r2(T.exp))],
+      [B(t("Net income")), BM(r2(T.net))],
+      [],
+      [t("Average day"), M(r2(days.length ? T.gross / days.length : 0))],
+      [t("Average ticket"), M(r2(T.n ? T.gross / T.n : 0))],
+      [t("Busiest day"), busiest ? busiest[0] : "\u2014", M(r2(busiest ? busiest[1] : 0))],
+      [t("Quietest day"), quietest ? quietest[0] : "\u2014", M(r2(quietest ? quietest[1] : 0))]
+    ];
+
+    /* ---- Items sold across the month ---- */
+    var agg = {};
+    days.forEach(function (k) {
+      (S.sales[k] || []).forEach(function (o) {
+        if (o.void) return;
+        o.lines.forEach(function (l) {
+          var key = l.id || l.name, it = byId(l.id);
+          if (!agg[key]) agg[key] = { nm: l.name || "", ar: l.ar || "", cat: it ? it.cat : "", qty: 0, amt: 0 };
+          agg[key].qty += l.qty; agg[key].amt += l.amount;
+        });
+      });
+    });
+    var keys = Object.keys(agg).sort(function (a2, b2) { return agg[b2].qty - agg[a2].qty; });
+    var irows = [[H(t("Item")), H(t("Arabic")), H(t("Category")), H(t("Quantity")), H(t("Amount") + " " + cu)]];
+    var qS = 0, aS = 0;
+    keys.forEach(function (n2) {
+      qS += agg[n2].qty; aS += agg[n2].amt;
+      irows.push([agg[n2].nm, agg[n2].ar, t(agg[n2].cat), agg[n2].qty, M(r2(agg[n2].amt))]);
+    });
+    if (keys.length) {
+      irows.push([B(t("Total")), "", "", sumF("D", 2, irows.length, qS), sumF("E", 2, irows.length, r2(aS))]);
+    } else irows.push(["\u2014"]);
+
+    /* ---- Expenses across the month ---- */
+    var xall = (S.expenses || []).filter(function (e) {
+      return !e.del && expDay(e).indexOf(mk + "-") === 0;
+    }).slice().reverse();
+    var erows = [[H(t("Day")), H(t("Time")), H(t("Category")), H(t("Reason")),
+      H(t("Paid from")), H(t("By")), H(t("Amount") + " " + cu)]];
+    xall.forEach(function (e) {
+      erows.push([expDay(e), hhmm(e.ts), t(e.cat || "Other"), e.note || "",
+        t(e.pay || "Cash"), e.by || "", M(r2(e.amount))]);
+    });
+    if (xall.length) erows.push([B(t("Total")), "", "", "", "", "", sumF("G", 2, erows.length, r2(sumExp(xall)))]);
+    else erows.push(["\u2014"]);
+
+    /* ---- every shift closed in the month ---- */
+    var shf = (S.shifts || []).filter(function (r) {
+      return r.closedAt && dayKey(new Date(r.closedAt)).indexOf(mk + "-") === 0;
+    }).slice().reverse();
+    var frows = [[H(t("Day")), H(t("Shift")), H(t("Opened by")), H(t("Closed by")),
+      H(t("Opening float")), H(t("Expected cash")), H(t("Counted")), H(t("Difference"))]];
+    shf.forEach(function (r) {
+      frows.push([dayKey(new Date(r.closedAt)), r.no, r.by, r.closedBy,
+        M(r2(r.float)), M(r2(r.expected)), M(r2(r.counted)), M(r2(r.diff))]);
+    });
+    if (!shf.length) frows.push(["\u2014"]);
+
+    return workbook([
+      { name: t("Summary"), rows: sum, widths: [34, 16, 16, 16] },
+      { name: t("Day by day"), rows: drows,
+        widths: [12, 8, 9, 12, 11, 11, 11, 10, 14, 12, 12, 11, 8, 12, 14] },
+      { name: t("Items sold"), rows: irows, widths: [30, 24, 16, 10, 14] },
+      { name: t("Expenses"), rows: erows, widths: [12, 8, 16, 30, 12, 14, 14] },
+      { name: t("Shifts"), rows: frows, widths: [12, 8, 16, 16, 13, 14, 12, 12] }
+    ]);
+  }
+  function monthXlsName(mk) { return "Empratour-month-" + mk + ".xlsx"; }
+  function saveMonthXls(mk, quiet) {
+    try {
+      return saveBlob(monthXlsName(mk), monthWorkbook(mk)).then(function (ok) {
+        if (ok && !quiet) toast(t("Saved") + " " + monthXlsName(mk));
+        return ok;
+      });
+    } catch (e) {
+      if (!quiet) toast(t("Could not build the file."), true);
+      return Promise.resolve(false);
+    }
+  }
+
   function xlsName(k) { return "Empratour-" + k + ".xlsx"; }
   function bakName(k) { return "Empratour-backup-" + k + ".json"; }
 
@@ -5423,8 +6120,6 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (sm.tips) L.splice(4, 0, t("Extra kept") + ": " + money(sm.tips) + " " + cur());
     if (sm.refunds) L.push(t("Refunded") + ": " + money(sm.refunds) + " " + cur());
     if (shiftsToday.length) L.push(t("Difference") + ": " + money(diff) + " " + cur());
-    L.push("");
-    L.push(t("The Excel report and the rescue file are attached."));
     return L.join("\n");
   }
   function dayFiles(k) {
@@ -5449,12 +6144,93 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var at = (S.settings.sentDays || {})[k];
     return at ? t("Sent") + " · " + hhmm(new Date(at).toISOString()) : t("Not sent yet");
   }
+  /* ---- the month, sent by itself on the last night of the month ---- */
+  function prevMonth() {
+    var d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
+    return monthKey(d);
+  }
+  function markMonthSent(mk) {
+    S.settings.sentMonths = S.settings.sentMonths || {};
+    S.settings.sentMonths[mk] = Date.now();
+    var ks = Object.keys(S.settings.sentMonths).sort();
+    while (ks.length > 36) { delete S.settings.sentMonths[ks.shift()]; }
+    saveConfig();
+  }
+  function monthSentLabel() {
+    var m2 = S.settings.sentMonths || {}, ks = Object.keys(m2).sort();
+    if (!ks.length) return t("Not sent yet");
+    var last = ks[ks.length - 1];
+    return monthName(last) + " \u00b7 " + whenStr(new Date(m2[last]).toISOString());
+  }
+  function monthSummaryText(mk) {
+    var days = monthDays(mk), T = { n: 0, gross: 0, exp: 0 };
+    days.forEach(function (k) {
+      var sm = sums(S.sales[k] || []);
+      T.n += sm.n; T.gross += sm.gross; T.exp += sumExp(dayExpenses(k));
+    });
+    return [
+      "El Empratour \u2014 " + t("Month report") + " " + monthName(mk),
+      t("Days traded") + ": " + days.length,
+      t("Orders") + ": " + T.n,
+      t("Gross") + ": " + money(T.gross) + " " + cur(),
+      t("Expenses") + ": " + money(T.exp) + " " + cur(),
+      t("Net income") + ": " + money(T.gross - T.exp) + " " + cur()
+    ].join("\n");
+  }
+  function sendMonth(mk) {
+    var subject = "El Empratour \u00b7 " + t("Month report") + " " + mk;
+    var text = monthSummaryText(mk);
+    var f = null;
+    try {
+      f = new File([monthWorkbook(mk)], monthXlsName(mk),
+        { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    } catch (e) {}
+    if (f && navigator.canShare && navigator.share) {
+      var payload = { files: [f], title: subject, text: text + "\n\n" + t("The Excel report and the rescue file are attached.") };
+      if (navigator.canShare(payload)) {
+        navigator.share(payload).then(function () {
+          markMonthSent(mk); renderXls && renderXls(); toast(t("Sent"));
+        }).catch(function () {});
+        return;
+      }
+    }
+    saveMonthXls(mk, true);
+    var to = (S.settings.mailTo || "").trim();
+    setTimeout(function () {
+      try {
+        window.location.href = "mailto:" + to.replace(/[\s<>"]/g, "") +
+          "?subject=" + encodeURIComponent(subject) +
+          "&body=" + encodeURIComponent(text + "\n\n" + t("Attach the two files from the Downloads folder."));
+      } catch (e) {}
+      renderXls && renderXls();
+      toast(t("Attach the two files from the Downloads folder."));
+    }, 1800);
+  }
+  /* On the first day of a new month the one just finished is complete, so it
+     is written and offered for sending — once, and never again. */
+  function autoMonthly() {
+    if (S.settings.autoXls === false) return;
+    var mk = prevMonth();
+    if (!monthDays(mk).length) return;
+    var sent = S.settings.sentMonths || {};
+    if (sent[mk]) return;
+    saveMonthXls(mk, true).then(function (ok) {
+      if (!ok) return;
+      markMonthSent(mk);
+      renderXls && renderXls();
+      toast(t("Last month's Excel saved") + " \u00b7 " + monthXlsName(mk));
+    });
+  }
+
   function sendDay(k) {
     var files = dayFiles(k), text = daySummaryText(k);
     var subject = "El Empratour · " + t("Day report") + " " + k;
+    // say which it is, honestly: the share sheet really does carry the files,
+    // the mail-app fallback does not
+    var shareText = text + "\n\n" + t("The Excel report and the rescue file are attached.");
     // the share sheet must be opened inside the tap, so nothing async first
     if (files.length && navigator.canShare && navigator.share) {
-      var payload = { files: files, title: subject, text: text };
+      var payload = { files: files, title: subject, text: shareText };
       if (navigator.canShare(payload)) {
         navigator.share(payload).then(function () {
           markSent(k); renderXls && renderXls();
@@ -5470,21 +6246,43 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var body = text + "\n\n" + t("Attach the two files from the Downloads folder.");
     setTimeout(function () {
       try {
-        window.location.href = "mailto:" + encodeURIComponent(to) +
+        // the address itself is NOT percent-encoded: some Android mail apps
+        // drop a recipient whose @ arrives as %40
+        window.location.href = "mailto:" + to.replace(/[\s<>"]/g, "") +
           "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
       } catch (e) {}
-      markSent(k);
+      // NOT marked as sent: the mail app was only opened, and nothing was
+      // attached. Claiming "Sent" here is how a day goes out that never went.
+      renderXls && renderXls();
       toast(t("Attach the two files from the Downloads folder."));
     }, 1800);
   }
 
   // yesterday's book, written by itself the first time the till is used today
+  // the newest thing that happened on a day, so a file written at the first
+  // shift close is not mistaken for the finished day
+  function dayTouched(k) {
+    var t3 = 0;
+    (S.sales[k] || []).forEach(function (o) {
+      t3 = Math.max(t3, Number(o.upd) || 0, o.ts ? new Date(o.ts).getTime() : 0);
+    });
+    (S.shifts || []).forEach(function (r) {
+      if (r.closedAt && dayKey(new Date(r.closedAt)) === k) t3 = Math.max(t3, Number(r.closedTs) || new Date(r.closedAt).getTime());
+    });
+    (S.expenses || []).forEach(function (e) {
+      if (e.ts && dayKey(new Date(e.ts)) === k) t3 = Math.max(t3, new Date(e.ts).getTime());
+    });
+    return t3;
+  }
   function autoDailyXls() {
     if (S.settings.autoXls === false) return;
     var today = dayKey();
     var done = S.settings.xlsDone || {};
+    // A file saved when shift 1 closed holds lunch only. If anything happened
+    // on that day AFTER the file was written, write it again — otherwise the
+    // restaurant keeps a half-day workbook for that date for ever.
     var pending = Object.keys(S.sales).filter(function (k) {
-      return k < today && (S.sales[k] || []).length && !done[k];
+      return k < today && (S.sales[k] || []).length && (!done[k] || dayTouched(k) > done[k] + 1000);
     }).sort();
     if (!pending.length) return;
     var k = pending[pending.length - 1];
@@ -5541,8 +6339,47 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   } catch (e) {}
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
-      navigator.serviceWorker.register("sw.js", { scope: "./" }).catch(function () {});
+      navigator.serviceWorker.register("sw.js", { scope: "./" }).then(function (reg) {
+        /* An update used to need TWO reloads: the first one still ran the old
+           page, so the manager saw no change and assumed it had failed. Now
+           the new version is taken the moment it is ready — but only when the
+           till is idle, because reloading mid-check throws the check away. */
+        function offer(sw) {
+          if (!sw) return;
+          sw.addEventListener("statechange", function () {
+            if (sw.state === "installed" && navigator.serviceWorker.controller) armUpdate(sw);
+          });
+        }
+        if (reg.waiting && navigator.serviceWorker.controller) armUpdate(reg.waiting);
+        offer(reg.installing);
+        reg.addEventListener("updatefound", function () { offer(reg.installing); });
+        setInterval(function () { reg.update().catch(function () {}); }, 30 * 60000);
+      }).catch(function () {});
+
+      var reloading = false;
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (reloading) return;
+        reloading = true;
+        location.reload();
+      });
     });
+  }
+
+  /* A new version is ready. Never interrupt a sale for it: wait until there
+     is no check on screen, no open modal and nobody has touched the tablet
+     for a minute, then take it. If the tablet is busy all night it simply
+     waits, and the update lands the next time the app is opened. */
+  function armUpdate(sw) {
+    var tries = 0;
+    var timer = setInterval(function () {
+      if (++tries > 480) { clearInterval(timer); return; }      // give up after 4h
+      if (S.cart && S.cart.length) return;
+      if ($("modalMount") && $("modalMount").innerHTML) return;
+      if (Date.now() - lastTouch < 60000) return;
+      clearInterval(timer);
+      try { sw.postMessage("skipWaiting"); } catch (e) {}
+    }, 30000);
+    toast(t("A new version is ready. It will install when the till is idle."));
   }
 
   /* ---------- a till should never lose its data or go dark ---------- */
@@ -5571,14 +6408,17 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 
   (function boot() {
     adopt(loadLocal());
-    saveLocal();          // write back whatever adopt() had to repair
     loadOut();
-    if (!S.menu.length) S.menu = seedMenu();
+    if (!S.menu.length) { S.menu = seedMenu(); dropIx(); }
     if (!S.staff.length) S.staff = seedStaff();
     if (!S.groups.length) S.groups = seedGroups();
-    if (!S.ings.length) S.ings = seedIngredients();
+    if (!S.ings.length) { S.ings = seedIngredients(); dropIx(); }
     if (!S.tables.length) S.tables = seedTables();
     splitStockOnce();
+    // AFTER the seeding, not before: on a brand new tablet the menu, the
+    // staff and the tables were only written once something else happened,
+    // so closing the app on the first screen lost the whole starting set-up
+    saveLocal();
     S.salesDay = dayKey();
 
     try {
@@ -5602,7 +6442,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     loadDirHandle().then(function (hh) {
       return dirOk(hh).then(function (ok) { if (ok) { xlsDir = hh; if (S.tab === "setup") renderSetup(); } });
     }).catch(function () {});
-    setTimeout(autoDailyXls, 4000);
+    // the two heaviest background jobs used to fire 4 s into every boot and
+    // freeze the tablet twice while the waiter was already using it
+    setTimeout(function () {
+      if (trimOldDays()) saveSoon();
+      setTimeout(function () { autoDailyXls(); setTimeout(autoMonthly, 8000); }, 6000);
+    }, 12000);
     if (!S.me) lockNow(); else showLock(false);
 
     paintSync();
