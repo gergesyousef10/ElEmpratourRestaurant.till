@@ -770,6 +770,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       <div class="panel padded" id="tableList" style="margin-bottom:18px"></div>
 
       <div class="bar" style="margin-top:4px">
+        <h3 class="sec-title grow" data-t="Printer">Printer</h3>
+      </div>
+      <div class="panel padded" id="prnPanel" style="margin-bottom:18px"></div>
+
+      <div class="bar" style="margin-top:4px">
         <h3 class="sec-title grow" data-t="Daily Excel">Daily Excel</h3>
       </div>
       <div class="panel padded" id="xlsPanel" style="margin-bottom:18px"></div>
@@ -840,6 +845,23 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   /* ============ language ============ */
   var LANG = "en";
   var AR = {
+    "Printer":"الطابعة",
+    "Pair the till with the thermal printer and it prints the receipt itself \u2014 no helper app, and nothing but your own words on the paper.":"اربط الكاشير بالطابعة الحرارية و هو يطبع الإيصال بنفسه \u2014 من غير برنامج تاني، و من غير أي كلام غريب على الورق.",
+    "Not paired \u2014 printing goes through the tablet":"مش مربوطة \u2014 الطباعة بتمشي من التابلت",
+    "Pair by Bluetooth":"اربط بالبلوتوث",
+    "Pair another":"اربط واحدة تانية",
+    "Pair by cable":"اربط بالكابل",
+    "Test print":"طباعة تجربة",
+    "Unpair":"فك الربط",
+    "Turn the printer on and hold it near the tablet before pairing. If it will not pair, leave it unpaired \u2014 the till goes on printing the way it does now.":"شغّل الطابعة و قرّبها من التابلت قبل الربط. لو ما ربطتش، سيبها كده \u2014 الكاشير هيفضل يطبع زي ما هو بيعمل دلوقتي.",
+    "Printer connected":"الطابعة اتربطت",
+    "Could not reach the printer.":"مقدرناش نوصل للطابعة.",
+    "This browser cannot reach Bluetooth printers. Open the till in Chrome.":"المتصفح ده مش بيوصل لطابعات البلوتوث. افتح الكاشير من كروم.",
+    "This browser cannot reach a printer over the cable.":"المتصفح ده مش بيوصل للطابعة من الكابل.",
+    "The printer is still working.":"الطابعة لسه بتطبع.",
+    "The printer did not answer. Printing the usual way.":"الطابعة مردتش. هنطبع بالطريقة العادية.",
+    "Printed":"اتطبع",
+    "Width":"العرض",
     "Cashier & Stock":"كاشير و المخزن","Theme":"المظهر","Lock":"قفل",
     "Order":"الطلب","Tables":"الطاولات","Kitchen":"المطبخ","Shift":"الوردية","Stock":"المخزن",
     "Sales":"المبيعات","Setup":"الإعدادات","Menu":"المنيو",
@@ -3067,7 +3089,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' +
       esc(t("Restaurant & Bar \u00b7 Sherry St, Sekala")) + "</div>" + taxLine() + "<hr>" + body +
       '<hr><div class="c">' + esc(t("Please check the bill before paying.")) + "</div>";
-    $("prBill").addEventListener("click", function () { window.print(); });
+    $("prBill").addEventListener("click", function () { doPrint(); });
     $("okBill").addEventListener("click", closeModal);
     renderTables(); updateBadges();
   }
@@ -3559,7 +3581,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       closeModal();
       if (backToTables) setTab("tables");
     });
-    $("prBtn").addEventListener("click", function () { window.print(); });
+    $("prBtn").addEventListener("click", function () { doPrint(); });
     if (window.claude && window.claude.use) {
       window.claude.use("downloads").then(function (dl) {
         var b = $("dlBtn");
@@ -3571,6 +3593,408 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         });
       }).catch(function () {});
     }
+  }
+
+  /* ============ printing straight to the printer ============ */
+  /* The tablet's own print dialog needs a helper app, and the free one prints
+     an advert underneath every customer's receipt. This drives the printer
+     itself — over Bluetooth, or down the OTG cable — so the paper carries
+     nothing but the restaurant's own words.
+
+     The slip is drawn onto a canvas and sent as a picture, not as text. That
+     is the only way Arabic comes out joined and right to left: the browser
+     shapes the letters and the printer only has to lay down dots. It also
+     means the paper matches the screen exactly, whatever font the printer
+     happens to have burnt into it — and there is no code page to get wrong. */
+
+  var PRN = { chr: null, dev: null, usb: null, ep: 0, chunk: 182, busy: false, off: false };
+
+  /* the serial-over-Bluetooth services these printers are built from. There is
+     no standard one, so the app asks for all of them and then looks for
+     anything it is allowed to write to. */
+  var PRN_SVC = [
+    "000018f0-0000-1000-8000-00805f9b34fb",
+    "0000ff00-0000-1000-8000-00805f9b34fb",
+    "0000ffe0-0000-1000-8000-00805f9b34fb",
+    "0000fee7-0000-1000-8000-00805f9b34fb",
+    "0000ff80-0000-1000-8000-00805f9b34fb",
+    "0000ffb0-0000-1000-8000-00805f9b34fb",
+    "49535343-fe7d-4ae5-8fa9-9fafd205e455",
+    "e7810a71-73ae-499d-8c15-faa9aef0c3f2"
+  ];
+
+  function prnDots() { return (Number(S.settings.prnDots) || 576) === 384 ? 384 : 576; }
+  function prnReady() { return !!(PRN.chr || PRN.usb); }
+  function prnLabel() { return S.settings.prnName || ""; }
+  function prnPause(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  /* ---- read what is already laid out for the paper ---- */
+  /* One reader for all of them: the receipt, the bill, the shift report, the
+     stocktake and the day report all fill #printArea with the same handful of
+     shapes, so none of them needs its own printing code. */
+  function prnRows() {
+    var out = [], kids = $("printArea").children, i, n;
+    for (i = 0; i < kids.length; i++) {
+      var el = kids[i];
+      if (el.tagName === "HR") { out.push({ k: "hr" }); continue; }
+      if (el.classList.contains("l")) {
+        var sp = el.getElementsByTagName("span");
+        out.push({ k: "l",
+          a: sp[0] ? sp[0].textContent.trim() : el.textContent.trim(),
+          b: sp[1] ? sp[1].textContent.trim() : "",
+          sm: el.classList.contains("sm"),
+          big: el.classList.contains("big") });
+        continue;
+      }
+      // a centred block: a <br> inside it is a real line break
+      var buf = "", bold = false;
+      for (n = 0; n < el.childNodes.length; n++) {
+        var c = el.childNodes[n];
+        if (c.nodeName === "BR") {
+          if (buf.trim()) out.push({ k: "c", a: buf.trim(), big: bold });
+          buf = ""; bold = false;
+        } else {
+          if (c.nodeName === "STRONG" || c.nodeName === "B") bold = true;
+          buf += c.textContent;
+        }
+      }
+      if (buf.trim()) out.push({ k: "c", a: buf.trim(), big: bold });
+    }
+    return out;
+  }
+
+  /* ---- draw it ---- */
+  function prnCanvas() {
+    var W = prnDots(), PAD = 8, GAP = 18;
+    var rtl = LANG === "ar";
+    var cv = document.createElement("canvas");
+    var g = cv.getContext("2d");
+    // 203 dots to the inch: 26 dots is about 3.2mm, which reads at arm's length
+    var FB = W > 400 ? 26 : 20, FS = W > 400 ? 22 : 17,
+        FBIG = W > 400 ? 31 : 24, FH = W > 400 ? 38 : 28;
+    function fnt(px, bold) {
+      return (bold ? "700 " : "400 ") + px + 'px "Cairo","Noto Naskh Arabic",sans-serif';
+    }
+    function wrap(txt, px, bold, maxw) {
+      g.font = fnt(px, bold);
+      txt = txt || "";
+      if (!txt) return [""];
+      if (g.measureText(txt).width <= maxw) return [txt];
+      var words = txt.split(" "), ls = [], cur = "", i, w;
+      for (i = 0; i < words.length; i++) {
+        w = words[i];
+        // one word longer than the paper is wide: break it by letters rather
+        // than let it run off the edge unprinted
+        while (g.measureText(w).width > maxw && w.length > 1) {
+          var cut = w.length;
+          while (cut > 1 && g.measureText(w.slice(0, cut)).width > maxw) cut--;
+          if (cur) { ls.push(cur); cur = ""; }
+          ls.push(w.slice(0, cut)); w = w.slice(cut);
+        }
+        var probe = cur ? cur + " " + w : w;
+        if (!cur || g.measureText(probe).width <= maxw) cur = probe;
+        else { ls.push(cur); cur = w; }
+      }
+      if (cur) ls.push(cur);
+      return ls;
+    }
+
+    var ops = [], y = 14;
+    prnRows().forEach(function (r) {
+      if (r.k === "hr") { ops.push({ t: "hr", y: y + 7 }); y += 17; return; }
+      var px = r.big ? (r.k === "c" ? FH : FBIG) : (r.sm ? FS : FB);
+      var bold = !!r.big, lh = Math.round(px * 1.42);
+      if (r.k === "c") {
+        wrap(r.a, px, bold, W - 2 * PAD).forEach(function (s) {
+          ops.push({ t: "c", s: s, y: y + px, px: px, b: bold }); y += lh;
+        });
+        return;
+      }
+      g.font = fnt(px, bold);
+      var bw = r.b ? g.measureText(r.b).width : 0;
+      var ind = r.sm ? 26 : 0;
+      var room = W - 2 * PAD - ind - (bw ? bw + GAP : 0);
+      wrap(r.a, px, bold, Math.max(48, room)).forEach(function (s, i) {
+        ops.push({ t: "l", s: s, r: i === 0 ? r.b : "", y: y + px, px: px, b: bold, ind: ind });
+        y += lh;
+      });
+    });
+    y += 10;
+
+    cv.width = W; cv.height = Math.max(48, y);
+    g = cv.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0, 0, cv.width, cv.height);
+    g.fillStyle = "#000"; g.textBaseline = "alphabetic";
+    ops.forEach(function (o) {
+      if (o.t === "hr") {
+        for (var x = PAD; x < W - PAD - 3; x += 9) g.fillRect(x, o.y, 5, 2);
+        return;
+      }
+      g.font = fnt(o.px, o.b);
+      g.direction = rtl ? "rtl" : "ltr";
+      if (o.t === "c") { g.textAlign = "center"; g.fillText(o.s, W / 2, o.y); return; }
+      if (rtl) {
+        g.textAlign = "right"; g.fillText(o.s, W - PAD - o.ind, o.y);
+        // the money column is read as a number wherever the language runs
+        if (o.r) { g.textAlign = "left"; g.direction = "ltr"; g.fillText(o.r, PAD, o.y); }
+      } else {
+        g.textAlign = "left"; g.fillText(o.s, PAD + o.ind, o.y);
+        if (o.r) { g.textAlign = "right"; g.fillText(o.r, W - PAD, o.y); }
+      }
+    });
+    return cv;
+  }
+
+  /* ---- turn it into dots the printer understands ---- */
+  function prnJob(cv) {
+    var W = cv.width, H = cv.height, bpr = W >> 3;
+    var px = cv.getContext("2d").getImageData(0, 0, W, H).data;
+    var bits = new Uint8Array(bpr * H), x, y, i, v;
+    for (y = 0; y < H; y++) {
+      for (x = 0; x < W; x++) {
+        i = (y * W + x) * 4;
+        v = (px[i] * 299 + px[i + 1] * 587 + px[i + 2] * 114) / 1000;
+        if (px[i + 3] < 128) v = 255;
+        // thermal paper has no grey: everything darker than this burns black
+        if (v < 170) bits[y * bpr + (x >> 3)] |= 0x80 >> (x & 7);
+      }
+    }
+    var parts = [new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x00])];   // wake up, align left
+    var BAND = 96;                 // a small printer's buffer is a few KB, no more
+    for (y = 0; y < H; y += BAND) {
+      var h = Math.min(BAND, H - y);
+      var blk = new Uint8Array(8 + bpr * h);
+      blk.set([0x1d, 0x76, 0x30, 0x00, bpr & 255, bpr >> 8, h & 255, h >> 8], 0);
+      blk.set(bits.subarray(y * bpr, (y + h) * bpr), 8);
+      parts.push(blk);
+    }
+    parts.push(new Uint8Array([0x1b, 0x64, 0x04]));                 // feed clear of the tear bar
+    return parts;
+  }
+
+  /* ---- push the bytes down whichever wire is attached ---- */
+  function prnChrWrite(chr, slice) {
+    try {
+      // without waiting for an answer is five to eight times quicker over
+      // Bluetooth, which is the difference between a two-second slip and a
+      // twenty-second one at a busy bar. The pause below is what keeps the
+      // printer's small buffer from being run over.
+      if (chr.properties && chr.properties.writeWithoutResponse && chr.writeValueWithoutResponse)
+        return chr.writeValueWithoutResponse(slice);
+      if (chr.writeValueWithResponse) return chr.writeValueWithResponse(slice);
+      return chr.writeValue(slice);
+    } catch (e) { return Promise.reject(e); }
+  }
+  function prnWrite(buf) {
+    var i = 0, k = 0;
+    function step() {
+      if (i >= buf.length) return Promise.resolve();
+      var n = Math.min(PRN.chunk, buf.length - i);
+      return prnChrWrite(PRN.chr, buf.subarray(i, i + n))
+        .then(function () {
+          i += n;
+          return (++k % 16 === 0) ? prnPause(12).then(step) : step();
+        })
+        .catch(function (e) {
+          // the cheapest modules take twenty bytes at a time and no more.
+          // drop to that and start the same piece again rather than give up.
+          if (PRN.chunk > 20) { PRN.chunk = 20; return step(); }
+          throw e;
+        });
+    }
+    return step();
+  }
+  function prnSend(parts) {
+    if (PRN.usb) {
+      var all = new Uint8Array(parts.reduce(function (n, p) { return n + p.length; }, 0)), at = 0;
+      parts.forEach(function (p) { all.set(p, at); at += p.length; });
+      var i = 0;
+      var next = function () {
+        if (i >= all.length) return Promise.resolve();
+        var n = Math.min(4096, all.length - i);
+        return PRN.usb.transferOut(PRN.ep, all.subarray(i, i + n))
+          .then(function () { i += n; return next(); });
+      };
+      return next();
+    }
+    if (!PRN.chr) return Promise.reject(new Error("no printer"));
+    var k = 0;
+    var step = function () {
+      if (k >= parts.length) return Promise.resolve();
+      return prnWrite(parts[k++]).then(function () { return prnPause(28); }).then(step);
+    };
+    return step();
+  }
+
+  /* ---- what the Print buttons call ---- */
+  function doPrint() {
+    if (!prnReady()) { window.print(); return; }       // no printer paired: as before
+    if (PRN.busy) { toast(t("The printer is still working."), true); return; }
+    PRN.busy = true;
+    var job;
+    try { job = prnJob(prnCanvas()); }
+    catch (e) { PRN.busy = false; window.print(); return; }
+    prnSend(job).then(function () {
+      PRN.busy = false; toast(t("Printed"));
+    }).catch(function () {
+      PRN.busy = false;
+      // never leave the customer with no slip: fall back to the tablet's own
+      // print, which is what the till did before any of this existed
+      toast(t("The printer did not answer. Printing the usual way."), true);
+      setTimeout(function () { window.print(); }, 400);
+    });
+  }
+
+  /* ---- pairing ---- */
+  function prnHook(d) {
+    try {
+      d.addEventListener("gattserverdisconnected", function () {
+        PRN.chr = null; renderPrinter();
+        // these printers drop the link between checks to save their battery
+        if (!PRN.off) setTimeout(function () { prnRejoin(d); }, 1500);
+      });
+    } catch (e) {}
+  }
+  function prnFindChr(server) {
+    return server.getPrimaryServices().then(function (svcs) {
+      var i = 0;
+      function nxt() {
+        if (i >= svcs.length) return null;
+        return svcs[i++].getCharacteristics().then(function (cs) {
+          for (var j = 0; j < cs.length; j++) {
+            var p = cs[j].properties;
+            if (p && (p.write || p.writeWithoutResponse)) return cs[j];
+          }
+          return nxt();
+        }).catch(function () { return nxt(); });
+      }
+      return nxt();
+    });
+  }
+  function prnRejoin(d) {
+    if (!d || PRN.chr || PRN.off) return;
+    d.gatt.connect().then(prnFindChr).then(function (c) {
+      if (c) { PRN.chr = c; PRN.chunk = 182; renderPrinter(); }
+    }).catch(function () {});
+  }
+  function prnConnectBT() {
+    if (!navigator.bluetooth) {
+      toast(t("This browser cannot reach Bluetooth printers. Open the till in Chrome."), true);
+      return;
+    }
+    PRN.off = false;
+    navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: PRN_SVC })
+      .then(function (d) { PRN.dev = d; prnHook(d); return d.gatt.connect(); })
+      .then(prnFindChr)
+      .then(function (c) {
+        if (!c) throw new Error("nothing to write to");
+        PRN.chr = c; PRN.usb = null; PRN.chunk = 182;
+        S.settings.prnName = (PRN.dev && PRN.dev.name) || "Bluetooth";
+        saveConfig(); renderPrinter(); toast(t("Printer connected"));
+      })
+      .catch(function (e) {
+        if (e && e.name === "NotFoundError") return;      // he closed the list himself
+        toast(t("Could not reach the printer.") + " " + ((e && e.message) || ""), true);
+      });
+  }
+  function prnConnectUSB() {
+    if (!navigator.usb) { toast(t("This browser cannot reach a printer over the cable."), true); return; }
+    PRN.off = false;
+    navigator.usb.requestDevice({ filters: [{ classCode: 7 }] })
+      .catch(function () { return navigator.usb.requestDevice({ filters: [] }); })
+      .then(function (d) {
+        return d.open()
+          .then(function () { return d.selectConfiguration(1); })
+          .catch(function () {})
+          .then(function () {
+            var iface = null, ep = 0;
+            ((d.configuration && d.configuration.interfaces) || []).forEach(function (it) {
+              (it.alternates || []).forEach(function (alt) {
+                (alt.endpoints || []).forEach(function (e) {
+                  if (!iface && e.direction === "out" && e.type === "bulk") {
+                    iface = it; ep = e.endpointNumber;
+                  }
+                });
+              });
+            });
+            if (!iface) throw new Error("no way in");
+            return d.claimInterface(iface.interfaceNumber).then(function () {
+              PRN.usb = d; PRN.ep = ep; PRN.chr = null;
+              S.settings.prnName = d.productName || "USB";
+              saveConfig(); renderPrinter(); toast(t("Printer connected"));
+            });
+          });
+      })
+      .catch(function (e) {
+        if (e && e.name === "NotFoundError") return;
+        toast(t("Could not reach the printer.") + " " + ((e && e.message) || ""), true);
+      });
+  }
+  function prnDrop() {
+    PRN.off = true;
+    try { if (PRN.dev && PRN.dev.gatt && PRN.dev.gatt.connected) PRN.dev.gatt.disconnect(); } catch (e) {}
+    try { if (PRN.usb) PRN.usb.close(); } catch (e) {}
+    PRN.chr = null; PRN.usb = null; PRN.dev = null;
+    S.settings.prnName = ""; saveConfig(); renderPrinter();
+  }
+  /* on a tablet that has been left alone all night, come back by ourselves so
+     nobody has to remember to pair the printer before the first order */
+  function prnResume() {
+    if (!navigator.bluetooth || !navigator.bluetooth.getDevices) return;
+    navigator.bluetooth.getDevices().then(function (ds) {
+      if (!ds || !ds.length) return;
+      var want = S.settings.prnName || "";
+      var d = ds.filter(function (x) { return x.name === want; })[0] || ds[0];
+      if (!d) return;
+      PRN.dev = d; prnHook(d); prnRejoin(d);
+    }).catch(function () {});
+  }
+
+  function prnTest() {
+    var keep = $("printArea").innerHTML;
+    $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' +
+      esc(t("Restaurant & Bar · Sherry St, Sekala")) + "</div>" + taxLine() + "<hr>" +
+      '<div class="l"><span>' + esc(t("Test print")) + "</span><span>" + esc(hm(new Date())) + "</span></div>" +
+      '<div class="l"><span>' + esc(t("Width")) + "</span><span>" + prnDots() + " dots</span></div>" +
+      '<div class="l"><span>' + esc(t("Printer")) + "</span><span dir=\"auto\">" + esc(prnLabel()) + "</span></div><hr>" +
+      '<div class="l"><span dir="auto">1 × ' + esc(LANG === "ar" ? "شاي إنجليزي" : "English tea") +
+        "</span><span>" + money(80) + "</span></div>" +
+      '<div class="l big"><span>' + esc(t("Total")) + " " + esc(cur()) + "</span><span>" + money(80) + "</span></div><hr>" +
+      '<div class="c">' + esc(t("Thank you — see you again")) + "</div>";
+    doPrint();
+    setTimeout(function () { $("printArea").innerHTML = keep; }, 1200);
+  }
+
+  function renderPrinter() {
+    var el = $("prnPanel"); if (!el) return;
+    var on = prnReady();
+    el.innerHTML = '<div class="stack">' +
+      '<p class="hint" style="margin:0">' + esc(t("Pair the till with the thermal printer and it prints the receipt itself — no helper app, and nothing but your own words on the paper.")) + "</p>" +
+      '<dl class="kv"><dt>' + esc(t("Status")) + '</dt><dd class="' + (on ? "ok" : "bad") + '">' +
+        esc(on ? t("Connected") + (prnLabel() ? " · " + prnLabel() : "")
+               : t("Not paired — printing goes through the tablet")) + "</dd></dl>" +
+      '<div class="seg" id="prnW" style="max-width:340px">' +
+        '<button type="button" data-w="576" aria-pressed="' + (prnDots() === 576) + '">80mm · 576</button>' +
+        '<button type="button" data-w="384" aria-pressed="' + (prnDots() === 384) + '">58mm · 384</button>' +
+      "</div>" +
+      '<div class="t-tools" style="max-width:470px">' +
+        '<button type="button" id="prnBT">' + esc(on ? t("Pair another") : t("Pair by Bluetooth")) + "</button>" +
+        (navigator.usb ? '<button type="button" id="prnUSB">' + esc(t("Pair by cable")) + "</button>" : "") +
+        (on ? '<button type="button" id="prnTest">' + esc(t("Test print")) + "</button>" : "") +
+        (on ? '<button type="button" id="prnOff">' + esc(t("Unpair")) + "</button>" : "") +
+      "</div>" +
+      '<p class="hint" style="margin:0">' + esc(t("Turn the printer on and hold it near the tablet before pairing. If it will not pair, leave it unpaired — the till goes on printing the way it does now.")) + "</p>" +
+      "</div>";
+    $("prnBT").addEventListener("click", prnConnectBT);
+    if ($("prnUSB")) $("prnUSB").addEventListener("click", prnConnectUSB);
+    if ($("prnTest")) $("prnTest").addEventListener("click", prnTest);
+    if ($("prnOff")) $("prnOff").addEventListener("click", prnDrop);
+    $("prnW").addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-w]");
+      if (!b) return;
+      S.settings.prnDots = Number(b.dataset.w);
+      saveConfig(); renderPrinter(); toast(t("Saved"));
+    });
   }
 
   /* ============ kitchen display ============ */
@@ -4003,7 +4427,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<button class="btn primary" id="okShift" type="button">' + esc(t("Done")) + "</button></div>");
     $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' + esc(t("Shift report")) +
       " " + rec.no + "</div><hr>" + body;
-    $("prShift").addEventListener("click", function () { window.print(); });
+    $("prShift").addEventListener("click", function () { doPrint(); });
     $("mailShift").addEventListener("click", function () { sendDay(dayKey(new Date(rec.closedAt))); });
     $("okShift").addEventListener("click", closeModal);
     if (S.settings.autoXls !== false) saveDayAuto(dayKey(new Date(rec.closedAt)));
@@ -4174,7 +4598,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<button class="btn primary" id="okCount" type="button">' + esc(t("Done")) + "</button></div>");
     $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' + esc(t("Stocktake")) +
       "<br>" + esc(whenStr(rec.at)) + " · " + esc(rec.by) + "</div><hr>" + body;
-    $("prCount").addEventListener("click", function () { window.print(); });
+    $("prCount").addEventListener("click", function () { doPrint(); });
     $("okCount").addEventListener("click", closeModal);
   }
 
@@ -4700,7 +5124,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="acts"><button class="btn" id="prDay" type="button">' + esc(t("Print")) + "</button>" +
       '<button class="btn primary" id="okDay" type="button">' + esc(t("Done")) + "</button></div>");
     $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' + esc(t("Day report")) + "</div><hr>" + body;
-    $("prDay").addEventListener("click", function () { window.print(); });
+    $("prDay").addEventListener("click", function () { doPrint(); });
     $("okDay").addEventListener("click", closeModal);
   });
 
@@ -4805,7 +5229,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (tw) tw.hidden = !!(S.settings.taxNo || "").trim();
     $("setPts").value = S.settings.ptsPer;
     FXC.forEach(function (c) { $("fx" + c).value = fxRate(c); });
-    renderMenuRows(); renderGroups(); renderIngs(); renderTableList(); renderStaff(); renderCloud(); renderXls();
+    renderMenuRows(); renderGroups(); renderIngs(); renderTableList(); renderStaff(); renderCloud(); renderXls(); renderPrinter();
   }
 
   function renderXls() {
@@ -6462,6 +6886,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 
     startTabGuard();
     renderAll(); applyRole();
+    prnResume();
     setSync("This device", false);
     loadDirHandle().then(function (hh) {
       return dirOk(hh).then(function (ok) { if (ok) { xlsDir = hh; if (S.tab === "setup") renderSetup(); } });
