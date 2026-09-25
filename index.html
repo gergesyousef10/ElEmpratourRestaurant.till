@@ -1474,16 +1474,29 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
      then fight for room on every sale. So old days are let go on purpose,
      early and cheaply, and only once their Excel file and backup exist. */
   function trimOldDays() {
+    /* Counting DAYS is the wrong unit: forty quiet winter days is half a
+       megabyte, forty busy summer days is over five — right on the browser's
+       limit. So trim by SIZE, keeping at least a fortnight whatever happens,
+       and stop well short of the wall so the till is never fighting for room
+       in the middle of service. */
     var keep = Math.max(7, Number(S.settings.keepDays) || 40);
+    // 2.4 MB of a ~5 MB allowance. Bigger than this and the one blocking
+    // write per sale starts to be felt on a modest tablet; smaller and the
+    // Sales tab stops reaching back far enough to be useful. Everything
+    // older is already safe in the daily and monthly Excel files.
+    var BUDGET = 2400000;
     var done = S.settings.xlsDone || {};
     var days = Object.keys(S.sales).sort();
     var today = dayKey();
     var dropped = 0;
-    while (days.length > keep) {
+    function bytes() { try { return JSON.stringify(S.sales).length; } catch (e) { return 0; } }
+    var size = bytes();
+    while (days.length > 14 && (days.length > keep || size > BUDGET)) {
       var k = days[0];
       if (k >= today) break;
       if (!done[k]) break;             // never drop a day that was never saved
       delete S.sales[k]; days.shift(); dropped += 1;
+      size = bytes();
     }
     if (dropped) {
       S.expenses = (S.expenses || []).filter(function (e) { return !e.ts || S.sales[dayKey(new Date(e.ts))] || dayKey(new Date(e.ts)) >= days[0]; });
