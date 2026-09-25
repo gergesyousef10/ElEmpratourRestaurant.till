@@ -2,7 +2,7 @@
    Cache first, so the till opens instantly with no network at all, and
    quietly refreshes itself in the background whenever there is one.   */
 
-var CACHE = "ee-cashier-v24";
+var CACHE = "ee-cashier-v26";
 
 /* "./" and "index.html" are the SAME document. Caching both meant only the
    one the person happened to navigate to got refreshed, and the other stayed

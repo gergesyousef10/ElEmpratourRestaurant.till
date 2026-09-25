@@ -845,6 +845,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   /* ============ language ============ */
   var LANG = "en";
   var AR = {
+    "How dark the print is":"درجة سواد الطباعة",
+    "Light":"خفيف",
+    "Normal":"عادي",
+    "Darkest":"أغمق",
     "Print Arabic":"طباعة عربي",
     "Print English":"طباعة إنجليزي",
     "Printer":"الطابعة",
@@ -3631,6 +3635,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   ];
 
   function prnDots() { return (Number(S.settings.prnDots) || 576) === 384 ? 384 : 576; }
+  /* how hard the letters are burnt in: 1 light, 2 normal, 3 heaviest */
+  function prnInk() { var n = Number(S.settings.prnInk); return (n === 1 || n === 3) ? n : 2; }
   function prnReady() { return !!(PRN.chr || PRN.usb); }
   function prnLabel() { return S.settings.prnName || ""; }
   function prnPause(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
@@ -3679,8 +3685,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     // 203 dots to the inch: 26 dots is about 3.2mm, which reads at arm's length
     var FB = W > 400 ? 26 : 20, FS = W > 400 ? 22 : 17,
         FBIG = W > 400 ? 31 : 24, FH = W > 400 ? 38 : 28;
+    // thermal paper is grey and the head is small, so what looks right on a
+    // screen prints thin. The weight is carried up with the ink setting.
+    var WT = [["400", "700"], ["600", "800"], ["700", "900"]][prnInk() - 1];
     function fnt(px, bold) {
-      return (bold ? "700 " : "400 ") + px + 'px "Cairo","Noto Naskh Arabic",sans-serif';
+      return WT[bold ? 1 : 0] + " " + px + 'px "Cairo","Noto Naskh Arabic",sans-serif';
     }
     function wrap(txt, px, bold, maxw) {
       g.font = fnt(px, bold);
@@ -3757,13 +3766,27 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var W = cv.width, H = cv.height, bpr = W >> 3;
     var px = cv.getContext("2d").getImageData(0, 0, W, H).data;
     var bits = new Uint8Array(bpr * H), x, y, i, v;
+    var ink = prnInk(), cut = [170, 200, 215][ink - 1];
     for (y = 0; y < H; y++) {
       for (x = 0; x < W; x++) {
         i = (y * W + x) * 4;
         v = (px[i] * 299 + px[i + 1] * 587 + px[i + 2] * 114) / 1000;
         if (px[i + 3] < 128) v = 255;
-        // thermal paper has no grey: everything darker than this burns black
-        if (v < 170) bits[y * bpr + (x >> 3)] |= 0x80 >> (x & 7);
+        // thermal paper has no grey: everything darker than this burns black,
+        // and the lighter the cut, the thinner the letters come out
+        if (v < cut) bits[y * bpr + (x >> 3)] |= 0x80 >> (x & 7);
+      }
+    }
+    if (ink === 3) {
+      // darkest of all: spread every burnt dot one to its right, which is what
+      // thickens a stroke rather than merely darkening its middle
+      for (y = 0; y < H; y++) {
+        var row = y * bpr, carry = 0, b;
+        for (x = 0; x < bpr; x++) {
+          b = bits[row + x];
+          bits[row + x] = b | (b >> 1) | carry;
+          carry = (b & 1) << 7;
+        }
       }
     }
     var parts = [new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x00])];   // wake up, align left
@@ -3841,6 +3864,13 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
      printed, and put back the way it was. */
   var PRINT_FILL = null;
   function printFill(fn) { PRINT_FILL = fn; fn(); }
+  /* The restaurant's own paperwork is Arabic, whatever language the tablet is
+     being driven in. Only the customer's bill and receipt get a choice. */
+  function inAr(fn) {
+    var was = LANG;
+    LANG = "ar";
+    try { return fn(); } finally { LANG = was; }
+  }
   function printPair(id) {
     var ar = '<button class="btn" id="' + id + '" type="button">' + esc(t("Print Arabic")) + "</button>";
     var en = '<button class="btn" id="' + id + 'En" type="button">' + esc(t("Print English")) + "</button>";
@@ -4023,6 +4053,13 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         '<button type="button" data-w="576" aria-pressed="' + (prnDots() === 576) + '">80mm · 576</button>' +
         '<button type="button" data-w="384" aria-pressed="' + (prnDots() === 384) + '">58mm · 384</button>' +
       "</div>" +
+      '<p class="hint" style="margin:0">' + esc(t("How dark the print is")) + "</p>" +
+      '<div class="seg" id="prnI" style="max-width:340px">' +
+        [1, 2, 3].map(function (n) {
+          return '<button type="button" data-i="' + n + '" aria-pressed="' + (prnInk() === n) + '">' +
+            esc(t(["Light", "Normal", "Darkest"][n - 1])) + "</button>";
+        }).join("") +
+      "</div>" +
       '<div class="t-tools" style="max-width:470px">' +
         '<button type="button" id="prnBT">' + esc(on ? t("Pair another") : t("Pair by Bluetooth")) + "</button>" +
         (navigator.usb ? '<button type="button" id="prnUSB">' + esc(t("Pair by cable")) + "</button>" : "") +
@@ -4040,6 +4077,13 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       if (!b) return;
       S.settings.prnDots = Number(b.dataset.w);
       saveConfig(); renderPrinter(); toast(t("Saved"));
+    });
+    $("prnI").addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-i]");
+      if (!b) return;
+      S.settings.prnInk = Number(b.dataset.i);
+      saveConfig(); renderPrinter();
+      if (prnReady()) prnTest(); else toast(t("Saved"));    // show him the difference at once
     });
   }
 
@@ -4442,7 +4486,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     queueShift(); queueShiftClose(rec);
     renderShift(); renderShiftChip(); renderTicket();
 
-    var body = '<div class="l"><span>' + esc(t("Opened")) + "</span><span>" + esc(whenStr(rec.openedAt)) + "</span></div>" +
+    function shiftBody() { return '<div class="l"><span>' + esc(t("Opened")) + "</span><span>" + esc(whenStr(rec.openedAt)) + "</span></div>" +
       '<div class="l"><span>' + esc(t("Closed")) + "</span><span>" + esc(whenStr(rec.closedAt)) + "</span></div>" +
       '<div class="l"><span>' + esc(t("Opened by")) + "</span><span>" + esc(rec.by) + "</span></div>" +
       '<div class="l"><span>' + esc(t("Closed by")) + "</span><span>" + esc(rec.closedBy) + "</span></div><hr>" +
@@ -4464,16 +4508,21 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="l"><span>' + esc(t("Expected in drawer")) + "</span><span>" + money(rec.expected) + "</span></div>" +
       '<div class="l"><span>' + esc(t("Counted")) + "</span><span>" + money(rec.counted) + "</span></div>" +
       '<div class="l big" style="color:' + (Math.abs(rec.diff) < 0.01 ? "var(--ok)" : "var(--bad)") + '"><span>' +
-      esc(t("Difference")) + "</span><span>" + (rec.diff > 0 ? "+" : "") + money(rec.diff) + "</span></div>";
+      // the sign has to hang on to its digits, or an Arabic line prints the
+      // minus at the far end of the number where nobody reads it
+      esc(t("Difference")) + "</span><span>" + sgn(rec.diff, true) + "</span></div>"; }
+    var body = shiftBody();
 
     modal('<div class="rcpt"><div class="rh"><div class="n">' + esc(t("Shift report")) + "</div>" +
       '<div class="s">El Empratour · ' + esc(t("Shift")) + " " + rec.no + "</div></div>" + body + "</div>" +
       '<div class="acts"><button class="btn" id="prShift" type="button">' + esc(t("Print")) + "</button>" +
       '<button class="btn" id="mailShift" type="button">' + esc(t("Send the day")) + "</button>" +
       '<button class="btn primary" id="okShift" type="button">' + esc(t("Done")) + "</button></div>");
-    $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' + esc(t("Shift report")) +
-      " " + rec.no + "</div><hr>" + body;
-    $("prShift").addEventListener("click", function () { doPrint(); });
+    printFill(function () {
+      $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' + esc(t("Shift report")) +
+        " " + rec.no + "</div><hr>" + shiftBody();
+    });
+    $("prShift").addEventListener("click", function () { doPrint("ar"); });
     $("mailShift").addEventListener("click", function () { sendDay(dayKey(new Date(rec.closedAt))); });
     $("okShift").addEventListener("click", closeModal);
     if (S.settings.autoXls !== false) saveDayAuto(dayKey(new Date(rec.closedAt)));
@@ -4628,7 +4677,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function countReport(rec) {
     var bad = rec.lines.filter(function (l) { return l.diff; })
       .sort(function (a, b) { return (a.diff * a.price) - (b.diff * b.price); });
-    var body = '<div class="l"><span>' + esc(t("Counted")) + "</span><span>" + rec.count + "</span></div>" +
+    function countBody() { return '<div class="l"><span>' + esc(t("Counted")) + "</span><span>" + rec.count + "</span></div>" +
       '<div class="l"><span>' + esc(t("Items with a difference")) + "</span><span>" + bad.length + "</span></div>" +
       '<div class="l"><span>' + esc(t("Units")) + "</span><span>" + sgn(rec.units) + "</span></div>" +
       '<div class="l big" style="color:' + (rec.value < 0 ? "var(--bad)" : "var(--ok)") + '"><span>' +
@@ -4636,15 +4685,18 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       (bad.length ? bad.map(function (l) {
         return '<div class="l"><span dir="auto">' + esc(LANG === "ar" && l.ar ? l.ar : l.name) + "</span><span>" +
           sgn(l.diff) + " · " + sgn(l.diff * l.price, true) + "</span></div>";
-      }).join("") : '<div class="l"><span>' + esc(t("Everything matched.")) + "</span><span></span></div>");
+      }).join("") : '<div class="l"><span>' + esc(t("Everything matched.")) + "</span><span></span></div>"); }
+    var body = countBody();
 
     modal('<div class="rcpt"><div class="rh"><div class="n">' + esc(t("Stocktake")) + "</div>" +
       '<div class="s">El Empratour · ' + esc(whenStr(rec.at)) + " · " + esc(rec.by) + "</div></div>" + body + "</div>" +
       '<div class="acts"><button class="btn" id="prCount" type="button">' + esc(t("Print")) + "</button>" +
       '<button class="btn primary" id="okCount" type="button">' + esc(t("Done")) + "</button></div>");
-    $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' + esc(t("Stocktake")) +
-      "<br>" + esc(whenStr(rec.at)) + " · " + esc(rec.by) + "</div><hr>" + body;
-    $("prCount").addEventListener("click", function () { doPrint(); });
+    printFill(function () {
+      $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' + esc(t("Stocktake")) +
+        "<br>" + esc(whenStr(rec.at)) + " · " + esc(rec.by) + "</div><hr>" + countBody();
+    });
+    $("prCount").addEventListener("click", function () { doPrint("ar"); });
     $("okCount").addEventListener("click", closeModal);
   }
 
@@ -5131,7 +5183,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var orders = S.sales[S.salesDay] || [];
     var s = sums(orders);
     var xl = dayExpenses(S.salesDay), xa = sumExp(xl), xc = sumExp(xl, true);
-    var body = '<div class="l"><span>' + esc(prettyDay(S.salesDay)) + "</span><span></span></div><hr>" +
+    function dayBody() { return '<div class="l"><span>' + esc(prettyDay(S.salesDay)) + "</span><span></span></div><hr>" +
       '<div class="l"><span>' + esc(t("Orders")) + "</span><span>" + s.n + "</span></div>" +
       '<div class="l"><span>' + esc(t("Items sold")) + "</span><span>" + s.items + "</span></div>" +
       '<div class="l"><span>' + esc(t("Subtotal")) + "</span><span>" + money(s.sub) + "</span></div>" +
@@ -5164,13 +5216,17 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         return cl.length ? '<div class="l"><span>' + esc(t("Cleared before paying")) + "</span><span>" +
           cl.length + " · " + money(ct) + "</span></div>" : "";
       })() +
-      '<div class="l big"><span>' + esc(t("Net income")) + " " + esc(cur()) + "</span><span>" + money(s.gross - xa) + "</span></div>";
+      '<div class="l big"><span>' + esc(t("Net income")) + " " + esc(cur()) + "</span><span>" + money(s.gross - xa) + "</span></div>"; }
+    var body = dayBody();
     modal('<div class="rcpt"><div class="rh"><div class="n">' + esc(t("Day report")) + "</div>" +
       '<div class="s">El Empratour</div></div>' + body + "</div>" +
       '<div class="acts"><button class="btn" id="prDay" type="button">' + esc(t("Print")) + "</button>" +
       '<button class="btn primary" id="okDay" type="button">' + esc(t("Done")) + "</button></div>");
-    $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' + esc(t("Day report")) + "</div><hr>" + body;
-    $("prDay").addEventListener("click", function () { doPrint(); });
+    printFill(function () {
+      $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' +
+        esc(t("Day report")) + "</div><hr>" + dayBody();
+    });
+    $("prDay").addEventListener("click", function () { doPrint("ar"); });
     $("okDay").addEventListener("click", closeModal);
   });
 
@@ -6152,7 +6208,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     el.dispatchEvent(new Event("input", { bubbles: true }));
   }, true);
 
-  function dayWorkbook(k) {
+  /* The books are the restaurant's own, so they are written in Arabic even on
+     a night somebody left the tablet in English. */
+  function dayWorkbook(k) { return inAr(function () { return dayWorkbookAr(k); }); }
+  function dayWorkbookAr(k) {
     var orders = (S.sales[k] || []).slice().reverse();      // oldest first reads better
     var live = orders.filter(function (o) { return !o.void; });
     var s = sums(S.sales[k] || []);
@@ -6412,7 +6471,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var p2 = mk.split("-"), d = new Date(+p2[0], +p2[1] - 1, 1);
     return ltr(mon(d) + " " + d.getFullYear());
   }
-  function monthWorkbook(mk) {
+  function monthWorkbook(mk) { return inAr(function () { return monthWorkbookAr(mk); }); }
+  function monthWorkbookAr(mk) {
     var days = monthDays(mk), cu = cur();
 
     /* ---- Day by day ---- */
