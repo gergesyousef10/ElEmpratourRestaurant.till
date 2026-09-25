@@ -505,23 +505,19 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
-/* ---------- the order screen, split in two ----------
-   The kitchen and the bar are two different jobs. Side by side on a wide
-   screen, stacked on a narrow one, each with its own scroll so a long drinks
-   list never pushes the food off the bottom. */
-.split{display:grid;gap:12px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}
-.halfhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
-  margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--gold-lt);position:sticky;top:0;background:var(--bg);padding:4px 0;z-index:1}
-.halfhead .n{font-family:var(--mono);color:var(--txt-3);letter-spacing:0}
-.half{min-width:0}
-.half .items{max-height:calc(100vh - var(--hdr,110px) - 150px);overflow-y:auto;overscroll-behavior:contain;
-  padding-inline-end:2px}
-.half.off{display:none}
-@media (max-width:1100px){
-  .split{grid-template-columns:minmax(0,1fr);gap:16px}
-  .half .items{max-height:none;overflow:visible}
-}
+/* ---------- the order screen: bar or kitchen, then that side's own list ----
+   Two jobs, two buttons. Picking one shows only ITS categories underneath,
+   so a waiter looking for a cocktail never scrolls past the pasta. */
+.sides{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.sides button{display:flex;align-items:center;justify-content:center;gap:10px;
+  min-height:56px;border:1px solid var(--line-2);background:var(--sunk);color:var(--txt-2);
+  border-radius:12px;font-size:14px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  transition:background .14s,color .14s,border-color .14s}
+.sides button .n{font-family:var(--mono);font-size:12px;letter-spacing:0;opacity:.6}
+.sides button:hover{border-color:var(--gold);color:var(--txt)}
+.sides button[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:var(--on-gold)}
+.sides button[aria-pressed="true"] .n{opacity:.75}
+@media (max-width:700px){ .sides button{min-height:50px;font-size:13px} }
 
 /* ---------- print ---------- */
 #printArea{display:none}
@@ -582,17 +578,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       <div class="order-grid">
         <div>
           <input class="search" id="search" type="search" placeholder="Search the menu…" data-tph="Search the menu…" aria-label="Search">
-          <div class="cats" id="cats"></div>
-          <div class="split" id="menuSplit">
-            <div class="half" id="halfKitchen">
-              <p class="halfhead"><span data-t="Kitchen">Kitchen</span><span class="n" id="nKitchen"></span></p>
-              <div class="items" id="items"></div>
-            </div>
-            <div class="half" id="halfBar">
-              <p class="halfhead"><span data-t="Drinks &amp; bar">Drinks &amp; bar</span><span class="n" id="nBar"></span></p>
-              <div class="items" id="itemsBar"></div>
-            </div>
+          <div class="sides" id="sides" role="group" aria-label="Kitchen or bar">
+            <button type="button" data-side="kitchen" aria-pressed="true">
+              <span data-t="Kitchen">Kitchen</span><span class="n" id="nKitchen"></span></button>
+            <button type="button" data-side="bar" aria-pressed="false">
+              <span data-t="Bar">Bar</span><span class="n" id="nBar"></span></button>
           </div>
+          <div class="cats" id="cats"></div>
+          <div class="items" id="items"></div>
         </div>
 
         <aside class="panel ticket" id="ticket">
@@ -925,7 +918,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     "Value at selling price":"القيمة بسعر البيع","Items with a difference":"أصناف فيها فرق","Everything matched.":"كل حاجة مطابقة.","Nothing counted yet.":"لسه ما عدّيتش حاجة.",
     "No stocktake yet.":"مفيش جرد لسه.","Last stocktake":"آخر جرد","Type what is really there. Leave a box empty to skip that item.":"اكتب اللي موجود فعلاً. سيب الخانة فاضية لو مش عايز تعدّ الصنف ده.","Today's copy":"نسخة النهارده","Sent":"اتبعت","Not sent yet":"لسه ما اتبعتش",
     "The Excel report and the rescue file are attached.":"مرفق ملف الإكسل و ملف الإنقاذ.","Attach the two files from the Downloads folder.":"ارفق الملفين من مجلد التنزيلات.",
-    "Refund":"مرتجع","Refunded":"مرتجع","removed":"متشال","Not saved":"لم يتم الحفظ","The tablet's storage is full, so this sale could not be saved. The check is still on screen. Take a backup from Setup, then charge it again.":"مساحة التخزين في التابلت اتملت، فالفاتورة دي ما اتحفظتش. الفاتورة لسه على الشاشة. خد نسخة احتياطية من الإعدادات، و بعدين احسبها تاني.","The tablet's storage is full. Nothing is being saved — take a backup now.":"مساحة التخزين اتملت. مفيش حاجة بتتحفظ — خد نسخة احتياطية دلوقتي.","The till is open in another window":"الكاشير مفتوح في نافذة تانية","Two windows cannot take orders at the same time — the sales would overwrite each other. Close the other one, or move the till here.":"مينفعش نافذتين ياخدوا طلبات في نفس الوقت — الفواتير هتمسح بعضها. اقفل التانية، أو انقل الكاشير هنا.","Use the till here":"استخدم الكاشير هنا","this replaces":"ده هيمسح","A new version is ready. It will install when the till is idle.":"فيه نسخة جديدة جاهزة. هتتركب لما الكاشير يبقى فاضي.","outside a shift":"خارج الوردية","Month report":"تقرير الشهر","Day by day":"يوم بيوم","Shifts":"الورديات","Days traded":"أيام الشغل","Average day":"متوسط اليوم","Busiest day":"أعلى يوم","Quietest day":"أقل يوم","Day":"اليوم","days":"يوم","This month":"الشهر ده","Last month sent":"آخر شهر اتبعت","Send this month":"ابعت الشهر ده","Save this month now":"احفظ الشهر ده","Last month":"الشهر اللي فات","Last month's Excel saved":"ملف إكسل الشهر اللي فات اتحفظ","One workbook for the whole month: every day in a row, what sold, the expenses and every shift. It is saved and emailed by itself on the last day of the month.":"ملف واحد للشهر كله: كل يوم في صف، و الأصناف اللي اتباعت، و المصروفات، و كل الورديات. بيتحفظ و يتبعت لوحده أول يوم في الشهر الجديد.","Print bill":"طباعة الشيك","Bill":"الشيك","BILL \u2014 not a receipt":"شيك \u2014 ليس إيصالاً","Please check the bill before paying.":"برجاء مراجعة الشيك قبل الدفع.","Nothing on the ticket yet.":"مفيش حاجة على الفاتورة لسه.","Bill printed":"الشيك اتطبع","Kitchen":"المطبخ","Drinks & bar":"المشروبات و البار","No tax registration number is set, so receipts print without one.":"مفيش رقم تسجيل ضريبي، فالإيصالات بتطبع من غيره.","DUPLICATE \u2014 reprint":"صورة طبق الأصل \u2014 إعادة طباعة","Show all":"اعرض الكل","still open":"لسه مفتوحة","Yes":"نعم","VOIDED — NOT A VALID RECEIPT":"ملغاة — ليست إيصالاً صالحاً","Voided by":"ألغاها","You do not have permission for that.":"مالكش صلاحية للحاجة دي.","Only a manager can do that.":"المدير بس هو اللي يقدر يعمل ده.","Too many wrong tries. Wait a moment.":"محاولات غلط كتير. استنى شوية.","Type how much, as a number above zero.":"اكتب المبلغ، رقم أكبر من صفر.","That amount looks wrong.":"المبلغ ده شكله غلط.","Another table already has that name.":"فيه طاولة تانية بنفس الاسم.","This replaces everything on the tablet with what is in the file.":"ده هيمسح كل اللي على التابلت و يحط مكانه اللي في الملف.","You will lose":"هتفقد","orders today":"فاتورة النهارده","held checks":"فاتورة معلّقة","the open shift":"الوردية المفتوحة","Count the drawer and type what is in it.":"عد الدرج و اكتب اللي فيه.","Edited":"معدّلة","Edited by":"عدّلها",
+    "Refund":"مرتجع","Refunded":"مرتجع","removed":"متشال","Not saved":"لم يتم الحفظ","The tablet's storage is full, so this sale could not be saved. The check is still on screen. Take a backup from Setup, then charge it again.":"مساحة التخزين في التابلت اتملت، فالفاتورة دي ما اتحفظتش. الفاتورة لسه على الشاشة. خد نسخة احتياطية من الإعدادات، و بعدين احسبها تاني.","The tablet's storage is full. Nothing is being saved — take a backup now.":"مساحة التخزين اتملت. مفيش حاجة بتتحفظ — خد نسخة احتياطية دلوقتي.","The till is open in another window":"الكاشير مفتوح في نافذة تانية","Two windows cannot take orders at the same time — the sales would overwrite each other. Close the other one, or move the till here.":"مينفعش نافذتين ياخدوا طلبات في نفس الوقت — الفواتير هتمسح بعضها. اقفل التانية، أو انقل الكاشير هنا.","Use the till here":"استخدم الكاشير هنا","this replaces":"ده هيمسح","A new version is ready. It will install when the till is idle.":"فيه نسخة جديدة جاهزة. هتتركب لما الكاشير يبقى فاضي.","outside a shift":"خارج الوردية","Month report":"تقرير الشهر","Day by day":"يوم بيوم","Shifts":"الورديات","Days traded":"أيام الشغل","Average day":"متوسط اليوم","Busiest day":"أعلى يوم","Quietest day":"أقل يوم","Day":"اليوم","days":"يوم","This month":"الشهر ده","Last month sent":"آخر شهر اتبعت","Send this month":"ابعت الشهر ده","Save this month now":"احفظ الشهر ده","Last month":"الشهر اللي فات","Last month's Excel saved":"ملف إكسل الشهر اللي فات اتحفظ","One workbook for the whole month: every day in a row, what sold, the expenses and every shift. It is saved and emailed by itself on the last day of the month.":"ملف واحد للشهر كله: كل يوم في صف، و الأصناف اللي اتباعت، و المصروفات، و كل الورديات. بيتحفظ و يتبعت لوحده أول يوم في الشهر الجديد.","Print bill":"طباعة الشيك","Bill":"الشيك","BILL \u2014 not a receipt":"شيك \u2014 ليس إيصالاً","Please check the bill before paying.":"برجاء مراجعة الشيك قبل الدفع.","Nothing on the ticket yet.":"مفيش حاجة على الفاتورة لسه.","Bill printed":"الشيك اتطبع","Kitchen":"المطبخ","Drinks & bar":"المشروبات و البار","Bar":"البار","No tax registration number is set, so receipts print without one.":"مفيش رقم تسجيل ضريبي، فالإيصالات بتطبع من غيره.","DUPLICATE \u2014 reprint":"صورة طبق الأصل \u2014 إعادة طباعة","Show all":"اعرض الكل","still open":"لسه مفتوحة","Yes":"نعم","VOIDED — NOT A VALID RECEIPT":"ملغاة — ليست إيصالاً صالحاً","Voided by":"ألغاها","You do not have permission for that.":"مالكش صلاحية للحاجة دي.","Only a manager can do that.":"المدير بس هو اللي يقدر يعمل ده.","Too many wrong tries. Wait a moment.":"محاولات غلط كتير. استنى شوية.","Type how much, as a number above zero.":"اكتب المبلغ، رقم أكبر من صفر.","That amount looks wrong.":"المبلغ ده شكله غلط.","Another table already has that name.":"فيه طاولة تانية بنفس الاسم.","This replaces everything on the tablet with what is in the file.":"ده هيمسح كل اللي على التابلت و يحط مكانه اللي في الملف.","You will lose":"هتفقد","orders today":"فاتورة النهارده","held checks":"فاتورة معلّقة","the open shift":"الوردية المفتوحة","Count the drawer and type what is in it.":"عد الدرج و اكتب اللي فيه.","Edited":"معدّلة","Edited by":"عدّلها",
     "Removed after printing":"اتشال بعد الطبع","Net after edit":"الصافي بعد التعديل",
     "Back":"رجوع","Cancel":"إلغاء","Save":"حفظ","Charge":"تحصيل","Apply":"تطبيق","Add":"إضافة",
     "Cashier":"كاشير","Supervisor":"مشرف","Manager":"مدير",
@@ -1275,6 +1268,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 
   /* ============ state ============ */
   var S = {
+    side: "kitchen",
     settings: Object.assign({}, DEFAULT_SETTINGS),
     counter: 1,
     menu: [], groups: [], ings: [], tables: [], customers: [], expenses: [],
@@ -2456,19 +2450,47 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
 
   /* ============ menu grid ============ */
+  // every category that actually has something in it, on the chosen side
+  function sideCats(side) {
+    var mine = S.menu.filter(function (i) {
+      return i.active !== false && (side === "bar" ? isBar(i) : !isBar(i));
+    });
+    var used = CATS.filter(function (c) { return mine.some(function (i) { return i.cat === c; }); });
+    mine.forEach(function (i) { if (used.indexOf(i.cat) < 0) used.push(i.cat); });
+    return used;
+  }
+  function renderSides() {
+    Array.prototype.forEach.call($("sides").children, function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.side === S.side));
+    });
+    $("nKitchen").textContent = S.menu.filter(function (i) { return i.active !== false && !isBar(i); }).length;
+    $("nBar").textContent = S.menu.filter(function (i) { return i.active !== false && isBar(i); }).length;
+  }
   function renderCats() {
-    var used = ["All"].concat(CATS.filter(function (c) { return S.menu.some(function (i) { return i.cat === c; }); }));
-    S.menu.forEach(function (i) { if (used.indexOf(i.cat) < 0) used.push(i.cat); });
+    var used = ["All"].concat(sideCats(S.side));
+    if (used.indexOf(S.cat) < 0) S.cat = "All";     // a category from the other side
     $("cats").innerHTML = used.map(function (c) {
       return '<button type="button" data-cat="' + esc(c) + '" aria-pressed="' + (S.cat === c) + '">' + esc(t(c)) + "</button>";
     }).join("");
   }
+  $("sides").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-side]");
+    if (!b || b.dataset.side === S.side) return;
+    S.side = b.dataset.side;
+    S.cat = "All";
+    renderSides(); renderCats(); renderItems();
+    $("items").scrollTop = 0;
+  });
   $("cats").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-cat]");
     if (!b) return;
     S.cat = b.dataset.cat; renderCats(); renderItems();
   });
-  $("search").addEventListener("input", function (e) { S.q = e.target.value.trim().toLowerCase(); renderItems(); });
+  $("search").addEventListener("input", function (e) {
+    S.q = e.target.value.trim().toLowerCase();
+    if (S.q) S.cat = "All";
+    renderCats(); renderItems();
+  });
 
   // rebuilt once per render instead of scanning the whole cart 210 times
   var cartIdx = null;
@@ -2484,26 +2506,17 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     cartIdx = null;                       // one index per render, not per item
     var list = S.menu.filter(function (i) {
       if (i.active === false) return false;
+      // typing in the search box looks across BOTH sides — a waiter hunting
+      // for "tea" should not have to remember which button he is standing on
+      if (!S.q && S.side === "bar" && !isBar(i)) return false;
+      if (!S.q && S.side !== "bar" && isBar(i)) return false;
       if (S.cat !== "All" && i.cat !== S.cat) return false;
       if (S.q && (i.name + " " + (i.ar || "")).toLowerCase().indexOf(S.q) < 0) return false;
       return true;
     });
-    var kitchen = list.filter(function (i) { return !isBar(i); });
-    var bar = list.filter(isBar);
-    var none = '<div class="empty" style="grid-column:1/-1">' +
-      esc(t("Nothing matches that. Try another category or clear the search.")) + "</div>";
-
-    $("items").innerHTML = kitchen.length ? tiles(kitchen) : none;
-    $("itemsBar").innerHTML = bar.length ? tiles(bar) : none;
-    $("nKitchen").textContent = kitchen.length || "";
-    $("nBar").textContent = bar.length || "";
-    // when a filter leaves one side empty, give the whole width to the other
-    $("halfKitchen").className = "half" + (kitchen.length ? "" : " off");
-    $("halfBar").className = "half" + (bar.length ? "" : " off");
-    if (!kitchen.length && !bar.length) {
-      $("halfKitchen").className = "half";
-      $("items").innerHTML = none;
-    }
+    $("items").innerHTML = list.length ? tiles(list)
+      : '<div class="empty" style="grid-column:1/-1">' +
+        esc(t("Nothing matches that. Try another category or clear the search.")) + "</div>";
   }
   function tiles(list) {
     return list.map(function (i) {
@@ -2522,11 +2535,9 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         "</span></button>";
     }).join("");
   }
-  ["items", "itemsBar"].forEach(function (id) {
-    $(id).addEventListener("click", function (e) {
-      var b = e.target.closest("button[data-add]");
-      if (b) tapItem(b.dataset.add);
-    });
+  $("items").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-add]");
+    if (b) tapItem(b.dataset.add);
   });
 
   function tapItem(id) {
@@ -5040,7 +5051,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       saveMenu();
       queueStock(deltas, {});
       closeModal();
-      renderSetup(); renderCats(); renderItems(); updateBadges();
+      renderSetup(); renderSides(); renderCats(); renderItems(); updateBadges();
       toast(list.length + " " + t("items") + " · " + t("Saved"));
     });
   });
@@ -5054,7 +5065,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     });
     saveMenu();
     queueStock(deltas, {});
-    renderSetup(); renderCats(); renderItems(); updateBadges();
+    renderSetup(); renderSides(); renderCats(); renderItems(); updateBadges();
     toast(list.length + " " + t("items") + " · " + t("Saved"));
   });
   $("taPriceBtn").addEventListener("click", function () {
@@ -5189,7 +5200,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         var want = it.track ? Math.max(0, Math.round(num($("eStock").value, 1000000))) : 0;
         it.stock = before;
         saveMenu(); stockSet("item", it.id, want); closeModal();
-        renderSetup(); renderCats(); renderItems(); updateBadges();
+        renderSetup(); renderSides(); renderCats(); renderItems(); updateBadges();
         toast(t("Saved"));
       });
     }
@@ -6312,7 +6323,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 
   function renderAll() {
     fitTicket();
-    renderCats(); renderItems(); renderTicket(); renderShiftChip(); updateBadges();
+    renderSides(); renderCats(); renderItems(); renderTicket(); renderShiftChip(); updateBadges();
     if (S.tab === "tables") renderTables();
     if (S.tab === "kitchen") renderKds();
     if (S.tab === "shift") renderShift();
