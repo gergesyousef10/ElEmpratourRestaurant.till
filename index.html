@@ -849,6 +849,18 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     "Light":"خفيف",
     "Normal":"عادي",
     "Darkest":"أغمق",
+    "Tip for the staff":"بقشيش للطاقم",
+    "Staff tips":"بقشيش الطاقم",
+    "Staff tips \u2014 sitting in the drawer":"بقشيش الطاقم \u2014 موجود في الدرج",
+    "To collect":"المطلوب تحصيله",
+    "Paid in total":"المدفوع بالكامل",
+    "Clear":"صفّر",
+    "Who is working tonight":"مين شغال النهارده",
+    "The tips are split equally between them at the end of the shift.":"البقشيش بيتقسم عليهم بالتساوي آخر الوردية.",
+    "Left for next time":"الباقي للمرة الجاية",
+    "Nobody was marked as working, so it cannot be split.":"محدش اتعلّم عليه إنه شغال، فمينفعش يتقسم.",
+    "not the restaurant\'s money":"مش فلوس المحل",
+    "each":"للواحد",
     "Print Arabic":"طباعة عربي",
     "Print English":"طباعة إنجليزي",
     "Printer":"الطابعة",
@@ -3257,12 +3269,25 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var method = "Cash";
     var payCur = "EGP";
     var keepTip = false;            // "keep the change" — counted, not handed back
+    /* The staff's tip is NOT the restaurant's money and never enters its
+       takings. It is collected with the bill, sits in the drawer until the
+       shift closes, and is then handed over. So it moves what the customer
+       owes, and nothing else. */
+    var stip = 0;
+    function grand() { return r2(due + stip); }
     var EGP_NOTES = [50, 100, 200, 500, 1000];
     var FX_NOTES = [5, 10, 20, 50, 100];
     var avail = fxList();
 
     modal('<div class="padded stack">' +
       '<div class="duebar"><span>' + esc(t("Amount due")) + '</span><span class="num">' + money(due) + " " + esc(cur()) + "</span></div>" +
+      '<div class="fld" style="max-width:280px"><label for="stipIn">' + esc(t("Tip for the staff")) + "</label>" +
+      '<input class="big-in" id="stipIn" type="text" inputmode="decimal" min="0" step="1" value="0"></div>' +
+      '<div class="quick" id="tipQuick">' +
+        [10, 20, 50, 100].map(function (n) { return '<button type="button" data-tp="' + n + '">' + n + "</button>"; }).join("") +
+        '<button type="button" data-tp="0">' + esc(t("Clear")) + "</button></div>" +
+      '<div class="duebar" id="grandBar" hidden><span>' + esc(t("To collect")) +
+        '</span><span class="num" id="grandVal">' + money(due) + "</span></div>" +
       '<div class="paygrid"><button type="button" class="paybtn" data-pm="Cash" aria-pressed="true">' + esc(t("Cash")) + "</button>" +
       '<button type="button" class="paybtn" data-pm="Card" aria-pressed="false">' + esc(t("Card")) + "</button>" +
       '<button type="button" class="paybtn" data-pm="Split" aria-pressed="false">' + esc(t("Split")) + "</button></div>" +
@@ -3295,7 +3320,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     function cardPart() {
       // a NEGATIVE card amount used to be accepted, which booked negative
       // card takings and inflated the cash expected in the drawer
-      return method === "Card" ? due : (method === "Split" ? Math.max(0, Math.min(due, num($("cardAmt").value, 1e7))) : 0);
+      return method === "Card" ? grand() : (method === "Split" ? Math.max(0, Math.min(grand(), num($("cardAmt").value, 1e7))) : 0);
     }
     function drawQuick() {
       var notes = payCur === "EGP" ? EGP_NOTES : FX_NOTES;
@@ -3304,11 +3329,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       $("tenderLbl").textContent = t("Cash received") + (payCur === "EGP" ? "" : " · " + payCur);
     }
     function needFx() {
-      var need = Math.max(0, due - cardPart());
+      var need = Math.max(0, grand() - cardPart());
       return payCur === "EGP" ? need : Math.ceil((need / rate()) * 100) / 100;
     }
     function upd() {
-      var need = Math.max(0, due - cardPart());
+      var need = Math.max(0, grand() - cardPart());
+      $("grandBar").hidden = !(stip > 0.004);
+      $("grandVal").textContent = money(grand());
+      $("confirmPay").textContent = t("Charge") + " " + money(grand());
       var got = method === "Card" ? 0 : Math.max(0, num($("tender").value, 1e7));
       var gotEgp = Math.round(got * rate() * 100) / 100;
       $("cardArea").hidden = method === "Cash";
@@ -3364,6 +3392,23 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       keepTip = b.dataset.x === "1";
       upd();
     });
+    function setTip(v) {
+      stip = Math.max(0, Math.min(1e6, num(v, 1e6)));
+      if ($("stipIn").value !== String(v)) $("stipIn").value = stip ? String(stip) : "0";
+      if (method !== "Split") $("tender").value = needFx();
+      upd();
+    }
+    $("stipIn").addEventListener("input", function () {
+      stip = Math.max(0, Math.min(1e6, num($("stipIn").value, 1e6)));
+      if (method === "Cash") $("tender").value = needFx();
+      upd();
+    });
+    $("tipQuick").addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-tp]");
+      if (!b) return;
+      var n = Number(b.dataset.tp);
+      setTip(n ? r2(stip + n) : 0);
+    });
     $("tender").addEventListener("input", upd);
     $("cardAmt").addEventListener("input", function () { $("tender").value = needFx(); upd(); });
     $("quick").addEventListener("click", function (e) {
@@ -3376,7 +3421,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     $("cancelPay").addEventListener("click", closeModal);
     $("confirmPay").addEventListener("click", function () {
       var card = cardPart();
-      var need = Math.max(0, due - card);
+      var need = Math.max(0, grand() - card);
       var got = method === "Card" ? 0 : Math.max(0, num($("tender").value, 1e7));
       var gotEgp = Math.round(got * rate() * 100) / 100;
       var over = Math.max(0, Math.round((gotEgp - need) * 100) / 100);
@@ -3384,15 +3429,22 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       var change = keepTip ? 0 : over;
       var fx = (payCur === "EGP" || method === "Card" || !got) ? null
         : { cur: payCur, rate: rate(), amt: got, egp: gotEgp };
-      commitOrder(tt, method, card, need, change, fx, tip);
+      // the bill is settled before the tip is: whatever the card covers goes
+      // against what is owed first, so the staff's share is never booked as
+      // a sale that was not made
+      var saleCard = Math.min(card, due), stipCard = r2(card - saleCard);
+      var saleCash = r2(due - saleCard), stipCash = r2(stip - stipCard);
+      commitOrder(tt, method, saleCard, saleCash, change, fx, tip, stip, stipCash);
     });
     drawQuick();
     upd();
     setTimeout(function () { var el = $("tender"); if (el) { el.focus(); el.select(); } }, 60);
   }
 
-  function commitOrder(tt, method, cardAmt, cashAmt, change, fx, tip) {
+  function commitOrder(tt, method, cardAmt, cashAmt, change, fx, tip, stip, stipCash) {
     tip = Math.max(0, Number(tip) || 0);
+    stip = Math.max(0, Number(stip) || 0);
+    stipCash = Math.max(0, Math.min(stip, Number(stipCash) || 0));
     var now = new Date();
     var lines = S.cart.map(function (l) {
       var it = byId(l.id);
@@ -3410,9 +3462,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       by: S.me ? S.me.name : "", byId: S.me ? S.me.id : "",
       shift: S.shift ? S.shift.no : 0,
       pay: method, card: cardAmt, cash: cashAmt, change: change, tip: tip,
+      // the staff's own money, riding along in the same drawer
+      stip: stip, stipCash: stipCash,
       // a tip in EGP stays in the drawer; a tip in a foreign note stays in the
       // foreign box, where fx already counts it, so EGP in the drawer is unmoved
-      fx: fx || null, egpIn: fx ? -change : cashAmt + tip,
+      fx: fx || null, egpIn: r2((fx ? -change : cashAmt + tip) + stipCash),
       cust: S.customer ? { id: S.customer.id, name: S.customer.name, phone: S.customer.phone } : null,
       disc: tt.disc, discInfo: S.disc,
       svcOn: S.svcOn, vatOn: S.vatOn,
@@ -3541,10 +3595,17 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         : '<div class="l"><span>' + esc(t("VAT")) +
           (o.vatRate ? " " + ltr(r2(o.vatRate * 100) + "%") : "") + "</span><span>" + money(o.vat) + "</span></div>") +
       '<div class="l big"><span>' + esc(t("Total")) + " " + esc(o.currency) + "</span><span>" + money(o.total) + "</span></div>" +
+      // the tip belongs to the staff, so it is shown under the bill's own total
+      // and never folded into it
+      ((Number(o.stip) || 0)
+        ? '<div class="l"><span>' + esc(t("Tip for the staff")) + "</span><span>" + money(o.stip) + "</span></div>" +
+          '<div class="l big"><span>' + esc(t("Paid in total")) + " " + esc(o.currency) + "</span><span>" +
+            money(r2(o.total + o.stip)) + "</span></div>"
+        : "") +
       // on an edited check cash/card already have the refund taken off them,
       // so add it back here — otherwise the slip shows the money leaving twice
       '<div class="l"><span>' + esc(t("Paid by")) + " " + esc(t(o.pay)) + "</span><span>" +
-        money((o.card || 0) + (o.cash || 0) + (Number(o.refund) || 0)) + "</span></div>" +
+        money((o.card || 0) + (o.cash || 0) + (Number(o.refund) || 0) + (Number(o.stip) || 0)) + "</span></div>" +
       // what the customer actually handed over. without this line a check paid
       // with a $20 note printed "paid 446.88, change 523.12" and read as a loss
       (o.fx
@@ -3567,7 +3628,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
   // the cash the customer put on the counter, before any change was given back
   function tendered(o) {
-    var paid = (Number(o.cash) || 0) + (Number(o.card) || 0) + (Number(o.refund) || 0);
+    var paid = (Number(o.cash) || 0) + (Number(o.card) || 0) + (Number(o.refund) || 0) + (Number(o.stip) || 0);
     var t2 = r2(paid + (Number(o.change) || 0) + (Number(o.tip) || 0));
     return Math.abs(t2 - paid) < 0.005 ? 0 : t2;    // nothing to say when it was exact
   }
@@ -4156,7 +4217,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
   function sums(list) {
     var s = { n: 0, gross: 0, sub: 0, cash: 0, card: 0, items: 0, disc: 0, voids: 0, vat: 0, srv: 0,
-              tips: 0, refunds: 0, egpIn: 0, fx: {}, noVat: 0, noSrv: 0 };
+              tips: 0, stips: 0, stipCash: 0, refunds: 0, egpIn: 0, fx: {}, noVat: 0, noSrv: 0 };
     list.forEach(function (o) {
       // a refund is real money out of the drawer whether or not the check it
       // came off ended up voided, so it is counted before the void is skipped
@@ -4168,6 +4229,9 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       var xtra = Number(o.tip) || 0;
       s.n += 1; s.gross += o.total + xtra; s.cash += (o.cash || 0); s.card += (o.card || 0);
       s.tips += xtra; s.sub += (Number(o.sub) || 0);
+      // the staff's tip is deliberately kept out of gross — it was never the
+      // restaurant's to earn. It only shows up in the drawer and in the split.
+      s.stips += (Number(o.stip) || 0); s.stipCash += (Number(o.stipCash) || 0);
       s.egpIn += (o.egpIn == null ? (o.cash || 0) : o.egpIn);
       if (o.fx && o.fx.cur) s.fx[o.fx.cur] = Math.round(((s.fx[o.fx.cur] || 0) + o.fx.amt) * 100) / 100;
       s.disc += (o.disc || 0); s.vat += (o.vat || 0); s.srv += (o.service || 0);
@@ -4176,6 +4240,30 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       o.lines.forEach(function (l) { s.items += l.qty; });
     });
     return s;
+  }
+  /* Equal shares, rounded DOWN to the piastre. Rounding each share up would
+     hand out more than the customers ever put in, and the last man would be
+     short. Whatever is left over stays in the box for next time. */
+  function tipSplit(rec) {
+    var pool = r2(Number(rec && rec.stips) || 0);
+    var crew = (rec && rec.crew && rec.crew.length) ? rec.crew : [];
+    var n = crew.length;
+    var each = n ? Math.floor((pool / n) * 100) / 100 : 0;
+    return { pool: pool, crew: crew, n: n, each: each, rest: r2(pool - each * n) };
+  }
+  function tipLines(rec) {
+    var sp = tipSplit(rec);
+    if (!sp.pool && !sp.n) return "";
+    return "<hr>" +
+      '<div class="l big"><span>' + esc(t("Staff tips")) + "</span><span>" + money(sp.pool) + "</span></div>" +
+      (sp.n
+        ? sp.crew.map(function (c) {
+            return '<div class="l"><span dir="auto">' + esc(c.name) + "</span><span>" + money(sp.each) + "</span></div>";
+          }).join("") +
+          (sp.rest ? '<div class="l sm"><span>' + esc(t("Left for next time")) + "</span><span>" +
+            money(sp.rest) + "</span></div>" : "")
+        : '<div class="l"><span>' + esc(t("Nobody was marked as working, so it cannot be split.")) +
+          "</span><span></span></div>");
   }
   function fxRows(map) {
     return Object.keys(map || {}).filter(function (c) { return map[c]; })
@@ -4193,7 +4281,20 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         '<p class="hint" style="margin:0">' + esc(t("Count the cash in the drawer and open a shift to start selling.")) + "</p></div>" +
         '<div class="fld" style="max-width:240px"><label for="floatIn">' + esc(t("Opening cash in drawer")) + "</label>" +
         '<input class="big-in" id="floatIn" type="text" inputmode="decimal" min="0" step="1" value="0"></div>' +
+        // the tip is split between the people who actually worked, so the till
+        // has to be told who they are while anyone still remembers
+        '<div><p class="eyebrow" style="margin:0 0 6px">' + esc(t("Who is working tonight")) + "</p>" +
+        '<div class="quick" id="crewPick">' + S.staff.map(function (u) {
+          return '<button type="button" data-u="' + esc(u.id) + '" aria-pressed="' +
+            (S.me && u.id === S.me.id) + '" dir="auto">' + esc(u.name) + "</button>";
+        }).join("") + "</div>" +
+        '<p class="hint" style="margin:6px 0 0">' + esc(t("The tips are split equally between them at the end of the shift.")) + "</p></div>" +
         '<div><button class="btn primary" id="openShiftBtn" type="button">' + esc(t("Open shift")) + "</button></div></div>";
+      $("crewPick").addEventListener("click", function (e) {
+        var b = e.target.closest("button[data-u]");
+        if (!b) return;
+        b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") === "true" ? "false" : "true");
+      });
       $("openShiftBtn").addEventListener("click", openShift);
     } else {
       var s = sums(shiftOrders(S.shift.no));
@@ -4213,6 +4314,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           "<dt>" + esc(t("Cash sales")) + "</dt><dd>" + money(s.cash) + "</dd>" +
           "<dt>" + esc(t("Card sales")) + "</dt><dd>" + money(s.card) + "</dd>" +
           (s.tips ? "<dt>" + esc(t("Extra kept")) + "</dt><dd>" + money(s.tips) + "</dd>" : "") +
+          (s.stips ? "<dt>" + esc(t("Staff tips")) + "</dt><dd>" + money(s.stips) + "</dd>" : "") +
           "<dt>" + esc(t("Discounts")) + "</dt><dd>" + money(s.disc) + "</dd>" +
           "<dt>" + esc(t("Cash out")) + "</dt><dd>" + money(xc) + "</dd>" +
           (shiftPayOut(S.shift.no) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>" + minusSign() +
@@ -4253,7 +4355,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           "<dt>" + esc(t("Expenses")) + "</dt><dd>" + minusSign() + money(r.expenses || 0) + "</dd>" +
           ((r.cashOut || 0) ? "<dt>" + esc(t("Cash out")) + "</dt><dd>" + minusSign() + money(r.cashOut) + "</dd>" : "") +
           ((r.payOut || 0) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>" + minusSign() + money(r.payOut) + "</dd>" : "") +
-          ((r.tips || 0) ? "" : "") +
+          ((r.stips || 0) ? "<dt>" + esc(t("Staff tips")) + "</dt><dd>" + money(r.stips) +
+            (tipSplit(r).n ? " · " + money(tipSplit(r).each) + " " + t("each") : "") + "</dd>" : "") +
           "<dt>" + esc(t("Net income")) + "</dt><dd>" + money(r.net == null ? r.gross : r.net) + "</dd>" +
           "<dt>" + esc(t("Expected cash")) + "</dt><dd>" + money(r.expected) + "</dd>" +
           "<dt>" + esc(t("Counted")) + "</dt><dd>" + money(r.counted) + "</dd>" +
@@ -4405,8 +4508,19 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
   function openShift() {
     var f = Math.max(0, num($("floatIn").value, 1e7));
+    var crew = [];
+    var pick = $("crewPick");
+    if (pick) Array.prototype.forEach.call(pick.children, function (b) {
+      if (b.getAttribute("aria-pressed") === "true") {
+        var u = S.staff.filter(function (x) { return x.id === b.dataset.u; })[0];
+        if (u) crew.push({ id: u.id, name: u.name });
+      }
+    });
+    // nobody ticked: the person opening the till is at least here
+    if (!crew.length && S.me) crew = [{ id: S.me.id, name: S.me.name }];
     S.settings.shiftNo = (Number(S.settings.shiftNo) || 0) + 1;
-    S.shift = { no: S.settings.shiftNo, by: S.me.name, byId: S.me.id, openedAt: new Date().toISOString(), float: f };
+    S.shift = { no: S.settings.shiftNo, by: S.me.name, byId: S.me.id, openedAt: new Date().toISOString(),
+      float: f, crew: crew };
     queueShift(); saveConfig();
     renderShift(); renderShiftChip(); renderTicket();
     toast(t("Shift") + " " + S.shift.no + " " + t("open"));
@@ -4434,6 +4548,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         "<dt>" + esc(t("Cash sales")) + "</dt><dd>" + money(s.cash) + "</dd>" +
         "<dt>" + esc(t("Card sales")) + "</dt><dd>" + money(s.card) + "</dd>" +
         (s.tips ? "<dt>" + esc(t("Extra kept")) + "</dt><dd>" + money(s.tips) + "</dd>" : "") +
+        (s.stips ? "<dt>" + esc(t("Staff tips \u2014 sitting in the drawer")) + "</dt><dd>" +
+          money(s.stips) + "</dd>" : "") +
         "<dt>" + esc(t("Cash out")) + "</dt><dd>" + minusSign() + money(xc) + "</dd>" +
         (shiftPayOut(S.shift.no) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>" + minusSign() +
           money(shiftPayOut(S.shift.no)) + "</dd>" : "") +
@@ -4477,6 +4593,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var rec = { no: S.shift.no, by: S.shift.by, openedAt: S.shift.openedAt, float: S.shift.float,
       okBy: okBy ? okBy.name : (S.me ? S.me.name : ""),
       cashOut: xc || 0, expenses: xa || 0, tips: s.tips || 0, payOut: r2(shiftPayOut(S.shift.no)),
+      stips: r2(s.stips || 0), crew: (S.shift.crew || []).slice(),
       net: s.gross - (xa || 0), fx: s.fx || {},
       closedBy: S.me ? S.me.name : "", closedAt: new Date().toISOString(), closedTs: Date.now(),
       n: s.n, gross: s.gross, cash: s.cash, card: s.card, items: s.items, disc: s.disc, voids: s.voids,
@@ -4510,7 +4627,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="l big" style="color:' + (Math.abs(rec.diff) < 0.01 ? "var(--ok)" : "var(--bad)") + '"><span>' +
       // the sign has to hang on to its digits, or an Arabic line prints the
       // minus at the far end of the number where nobody reads it
-      esc(t("Difference")) + "</span><span>" + sgn(rec.diff, true) + "</span></div>"; }
+      esc(t("Difference")) + "</span><span>" + sgn(rec.diff, true) + "</span></div>" + tipLines(rec); }
     var body = shiftBody();
 
     modal('<div class="rcpt"><div class="rh"><div class="n">' + esc(t("Shift report")) + "</div>" +
@@ -5216,7 +5333,9 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         return cl.length ? '<div class="l"><span>' + esc(t("Cleared before paying")) + "</span><span>" +
           cl.length + " · " + money(ct) + "</span></div>" : "";
       })() +
-      '<div class="l big"><span>' + esc(t("Net income")) + " " + esc(cur()) + "</span><span>" + money(s.gross - xa) + "</span></div>"; }
+      '<div class="l big"><span>' + esc(t("Net income")) + " " + esc(cur()) + "</span><span>" + money(s.gross - xa) + "</span></div>" +
+      (s.stips ? "<hr>" + '<div class="l"><span>' + esc(t("Staff tips")) + " \u2014 " +
+        esc(t("not the restaurant's money")) + "</span><span>" + money(s.stips) + "</span></div>" : ""); }
     var body = dayBody();
     modal('<div class="rcpt"><div class="rh"><div class="n">' + esc(t("Day report")) + "</div>" +
       '<div class="s">El Empratour</div></div>' + body + "</div>" +
@@ -6232,6 +6351,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       [t("VAT"), M(r2(s.vat))],
       [t("Extra kept"), M(r2(s.tips))],
       [B(t("Gross")), BM(r2(s.gross))],
+      [t("Staff tips"), M(r2(s.stips))],
       [t("Average ticket"), M(s.n ? r2(s.gross / s.n) : 0)],
       [t("Voided"), s.voids],
       [t("Refunded"), M(r2(s.refunds))],
@@ -6241,7 +6361,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       [H(t("By payment")), H(cu)],
       [t("Cash"), M(r2(s.cash))],
       [t("Card"), M(r2(s.card))],
-      [t("Extra kept"), M(r2(s.tips))]
+      [t("Extra kept"), M(r2(s.tips))],
+      [t("Staff tips"), M(r2(s.stips))]
     ];
     Object.keys(s.fx || {}).forEach(function (c) {
       if (s.fx[c]) sum.push([t("Foreign notes") + " " + c, r2(s.fx[c])]);
@@ -6480,7 +6601,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       t("Service"), t("VAT"), t("Extra"), t("Gross") + " " + cu, t("Cash sales"), t("Card sales"),
       t("Refunded"), t("Voided"), t("Expenses"), t("Net income") + " " + cu];
     var drows = [dh.map(H)];
-    var T = { n: 0, items: 0, sub: 0, disc: 0, srv: 0, vat: 0, tips: 0, gross: 0,
+    var T = { n: 0, items: 0, sub: 0, disc: 0, srv: 0, vat: 0, tips: 0, stips: 0, gross: 0,
               cash: 0, card: 0, refunds: 0, voids: 0, exp: 0, net: 0 };
     days.forEach(function (k) {
       var sm = sums(S.sales[k] || []);
@@ -6488,6 +6609,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       var net = sm.gross - xa;
       T.n += sm.n; T.items += sm.items; T.sub += sm.sub; T.disc += sm.disc;
       T.srv += sm.srv; T.vat += sm.vat; T.tips += sm.tips; T.gross += sm.gross;
+      T.stips += (sm.stips || 0);
       T.cash += sm.cash; T.card += sm.card; T.refunds += sm.refunds; T.voids += sm.voids;
       T.exp += xa; T.net += net;
       drows.push([k, sm.n, sm.items, M(r2(sm.sub)), M(r2(sm.disc)), M(r2(sm.srv)), M(r2(sm.vat)),
@@ -6525,6 +6647,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       [t("VAT"), M(r2(T.vat))],
       [t("Extra kept"), M(r2(T.tips))],
       [B(t("Gross")), BM(r2(T.gross))],
+      [t("Staff tips"), M(r2(T.stips))],
       [],
       [t("Cash sales"), M(r2(T.cash))],
       [t("Card sales"), M(r2(T.card))],
