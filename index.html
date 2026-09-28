@@ -347,6 +347,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 .quick button{flex:1;min-width:62px;min-height:46px;border:1px solid var(--line);background:var(--raise);border-radius:8px;
   padding:7px 6px;font-family:var(--mono);font-size:13px;color:var(--txt-2)}
 .quick button:hover{border-color:var(--gold);color:var(--gold-lt)}
+/* a ticked crew member decides who gets paid, and there was nothing on screen
+   to say which ones were ticked — a tap that missed changed the money silently */
+.quick button[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);
+  color:var(--on-gold);font-weight:700}
+.quick button[aria-pressed="true"]::before{content:"\2713\00a0"}
 .duebar{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
   font-family:var(--display);font-size:20px;font-weight:700;color:var(--gold-lt)}
 .duebar .num{font-family:var(--mono);font-size:19px}
@@ -849,6 +854,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     "Light":"خفيف",
     "Normal":"عادي",
     "Darkest":"أغمق",
+    "table still has an open check":"طاولة لسه عليها فاتورة مفتوحة",
+    "Charge this check without service?":"الفاتورة دي من غير خدمة؟",
+    "of that, cash in the drawer":"منه كاش في الدرج",
+    "the rest came in on cards":"الباقي جه على الفيزا",
+    "cash":"كاش",
     "Tip for the staff":"بقشيش للطاقم",
     "Staff tips":"بقشيش الطاقم",
     "Staff tips \u2014 sitting in the drawer":"بقشيش الطاقم \u2014 موجود في الدرج",
@@ -1459,6 +1469,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function freezeTab() {
     if (tabDead) return;
     tabDead = true;
+    // drop anything already queued for writing, before a timer fires with it
+    try { if (saveT) { clearTimeout(saveT); saveT = 0; } savePending = false; } catch (e) {}
     var d = document.createElement("div");
     d.id = "tabLock";
     d.style.cssText = "position:fixed;inset:0;z-index:9999;background:var(--bg,#111);color:var(--fg,#fff);" +
@@ -1507,6 +1519,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
      refuses to pretend the sale is safe. */
   var LSFULL = false;
   function writeState(snap) {
+    // A window the till has been MOVED AWAY FROM still holds the state as it
+    // was before the handover. Letting it write on the way out — and both
+    // pagehide and beforeunload used to — put that old state back over every
+    // sale the live window had taken since. Closing the window the app itself
+    // told you to close wiped the night's takings. It is frozen: it is done.
+    if (tabDead) return true;
     try { localStorage.setItem(LS_KEY, JSON.stringify(snap)); return true; }
     catch (e) { return false; }
   }
@@ -1595,6 +1613,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
      the whole table again. Its own small key, written on a short debounce. */
   var draftT = 0;
   function draftNow() {
+    if (tabDead) return;
     try {
       if (!S.cart || !S.cart.length) { localStorage.removeItem(LS_KEY + ":draft"); return; }
       localStorage.setItem(LS_KEY + ":draft", JSON.stringify({
@@ -1722,6 +1741,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
      day's own records. */
   var OUTCAP = 2000;
   function saveOut() {
+    if (tabDead) return;
     if (OUT.length > OUTCAP) OUT = OUT.slice(OUT.length - OUTCAP);
     try { localStorage.setItem(LS_KEY + ":out", JSON.stringify(OUT)); }
     catch (e) {
@@ -1743,6 +1763,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     // if sync is configured but currently down, hold it — it goes up on
     // reconnect, and pullFromDb must never overwrite work we discarded.
     if (DBSTATE === "off" && !FBCFG && !LANCFG) return;
+    if (tabDead) return;                 // a frozen window's work is already stale
     op.qid = DEVICE + "-" + uid();
     // collapse older writes of the same document, but never the one being sent
     // right now — dropping it would make flush() discard whatever took its place
@@ -1935,7 +1956,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function mainSet(id, value) {
     var it = byId(id);
     if (!it) return;
-    var v = Math.max(0, Math.round(Number(value) || 0)), d = v - (Number(it.main) || 0);
+    // this was the only stock box in the app still reading its number raw:
+    // typed in Arabic numerals — the ordinary thing to do on an Egyptian
+    // tablet — the whole warehouse figure silently went to zero
+    var v = Math.max(0, Math.round(num(value, 1e6))), d = v - (Number(it.main) || 0);
     it.main = v;
     queueStock({}, {}, d ? (function () { var o = {}; o[id] = d; return o; })() : {});
   }
@@ -2419,8 +2443,13 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     // the rendered screens stay in the DOM behind the lock, so the next person
     // to log in used to inherit the manager's sales list and staff PINs, live
     // buttons and all. Empty them.
-    ["orderList", "staffRows", "menuRows", "ingRows", "stockRows", "salesTiles",
-     "itemsRows", "expRows", "shiftHist"].forEach(function (id) {
+    // four of the names here were not element IDs at all, so the next person
+    // to log in still had the previous one's takings, best sellers, expected
+    // drawer and live transfer buttons sitting in the page behind the lock
+    ["orderList", "staffRows", "menuRows", "ingList", "stockRows", "salesTiles",
+     "menuList", "expPanel", "shiftHistory", "groupList", "tableList", "reportGrid",
+     "sellers", "stockTiles", "moveWarn", "shiftNow", "clockPanel", "xlsPanel",
+     "cloudPanel", "prnPanel", "kdsList", "tableGrid"].forEach(function (id) {
       var el = $(id); if (el) el.innerHTML = "";
     });
     var mm = $("modalMount"); if (mm) mm.innerHTML = "";
@@ -2484,6 +2513,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }, 30000);
 
   // manager approval prompt — returns through a callback
+  /* Four digits is ten thousand guesses. The lock screen has always made a
+     wrong try cost time; this prompt did not, so anyone left alone with the
+     tablet could count up to the manager's PIN and then void, discount and
+     empty the drawer as him. Same counter, same waits. */
+  var mgrBad = 0, mgrUntil = 0;
   function askManager(reason, ok, onCancel) {
     if (isMgr()) { ok(S.me); return; }
     modal('<div class="padded stack"><h3>' + esc(t("Manager PIN")) + "</h3>" +
@@ -2495,9 +2529,22 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       closeModal(); if (onCancel) onCancel();
     });
     $("mgrYes").addEventListener("click", function () {
+      if (Date.now() < mgrUntil) {
+        toast(t("Too many wrong tries. Wait a moment.") + " " +
+          Math.ceil((mgrUntil - Date.now()) / 1000) + "s", true);
+        return;
+      }
       var v = ($("mgrPin").value || "").replace(/\D/g, "");
       var who = S.staff.filter(function (u) { return u.pin === hashPin(v) && u.role === "manager"; })[0];
-      if (!who) { toast(t("Not authorised."), true); return; }
+      if (!who) {
+        mgrBad += 1;
+        if (mgrBad >= 5) { mgrUntil = Date.now() + 60000; mgrBad = 0; }
+        else if (mgrBad >= 3) mgrUntil = Date.now() + 5000;
+        $("mgrPin").value = "";
+        toast(t("Not authorised."), true);
+        return;
+      }
+      mgrBad = 0; mgrUntil = 0;
       closeModal(); ok(who);
     });
     setTimeout(function () { var el = $("mgrPin"); if (el) el.focus(); }, 50);
@@ -2708,7 +2755,18 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function totals() {
     var sub = S.cart.reduce(function (a, l) { return a + lineUnit(l) * l.qty; }, 0);
     var disc = 0;
-    if (S.disc) disc = S.disc.kind === "%" ? sub * S.disc.value / 100 : Math.min(sub, S.disc.value);
+    if (S.disc) {
+      disc = S.disc.kind === "%" ? sub * S.disc.value / 100 : Math.min(sub, S.disc.value);
+      // The limit used to be checked once, against the ticket as it stood when
+      // the discount went on. Ring up ten beers, take 100 off within the limit,
+      // then delete nine of them, and that same 100 is the whole bill — a
+      // hundred per cent discount nobody approved. So a discount no manager
+      // signed for is held to the limit against the ticket as it is NOW.
+      if (!S.disc.ok) {
+        var lim = Math.max(0, Math.min(100, Number(S.settings.discAuth) || 0));
+        disc = Math.min(disc, sub * lim / 100);
+      }
+    }
     // every line is rounded to the piastre HERE, and the total is the sum of
     // those rounded lines — otherwise the printed rows do not add up to the
     // printed total, and a tax invoice that does not foot is a real problem
@@ -2920,7 +2978,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
   function freshTicket() {
     S.cart = []; S.table = ""; S.note = ""; S.customer = null; S.disc = null; S.editing = null;
-    S.svcOn = true; S.vatOn = true;
+    S.svcOn = true; S.vatOn = true; S.svcBy = ""; S.vatBy = "";
     S.type = "Dine-in";
     Array.prototype.forEach.call(document.querySelectorAll(".seg button[data-type]"), function (x) {
       x.setAttribute("aria-pressed", String(x.dataset.type === "Dine-in"));
@@ -2929,11 +2987,18 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 
   /* ---- ticket tools ---- */
   $("svcBtn").addEventListener("click", function () {
-    if (!S.svcOn && !(Number(S.settings.service) || 0)) {
-      toast(t("Set the service % in Setup first."), true); return;
+    if (!S.svcOn) {                                   // putting it back on is always allowed
+      if (!(Number(S.settings.service) || 0)) { toast(t("Set the service % in Setup first."), true); return; }
+      S.svcOn = true; renderTicket(); return;
     }
-    S.svcOn = !S.svcOn;
-    renderTicket();
+    // twelve per cent of every check, taken off with one tap by anybody and
+    // nothing on the order to say who did it. The VAT button next to it has
+    // asked since the beginning; this one now asks too.
+    askManager(t("Charge this check without service?"), function (who) {
+      S.svcOn = false; S.svcBy = who ? who.name : (S.me ? S.me.name : "");
+      S.svcAt = new Date().toISOString();
+      renderTicket();
+    });
   });
   $("vatBtn").addEventListener("click", function () {
     if (!S.vatOn) {                                   // switching it back on is always allowed
@@ -2997,12 +3062,17 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       var sub = S.cart.reduce(function (a, l) { return a + lineUnit(l) * l.qty; }, 0);
       var pct = kind === "%" ? v : (sub ? v / sub * 100 : 100);
       var limit = Number(S.settings.discAuth) || 0;
-      var apply = function (who) {
-        S.disc = { kind: kind === "%" ? "%" : "amt", value: v, by: who ? who.name : (S.me ? S.me.name : "") };
+      var apply = function (who, signed) {
+        S.disc = { kind: kind === "%" ? "%" : "amt", value: v,
+          by: who ? who.name : (S.me ? S.me.name : ""),
+          // signed for by a manager: it stands whatever happens to the ticket
+          ok: !!signed };
         closeModal(); renderTicket();
       };
-      if (pct > limit && !isMgr()) askManager(t("Discount") + " " + Math.round(pct) + "%", apply);
-      else apply(S.me);
+      if (isMgr()) apply(S.me, true);
+      else if (pct > limit) askManager(t("Discount") + " " + Math.round(pct) + "%",
+        function (who) { apply(who, true); });
+      else apply(S.me, false);
     });
     setTimeout(function () { var el = $("dVal"); if (el) { el.focus(); el.select(); } }, 50);
   });
@@ -3445,6 +3515,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     tip = Math.max(0, Number(tip) || 0);
     stip = Math.max(0, Number(stip) || 0);
     stipCash = Math.max(0, Math.min(stip, Number(stipCash) || 0));
+    // paid with a foreign note, the tip is in the foreign box with the rest of
+    // that note, not in the EGP drawer. Counting it as EGP made the till
+    // expect money that was never there and the shift closed short.
+    if (fx) stipCash = 0;
     var now = new Date();
     var lines = S.cart.map(function (l) {
       var it = byId(l.id);
@@ -3466,10 +3540,13 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       stip: stip, stipCash: stipCash,
       // a tip in EGP stays in the drawer; a tip in a foreign note stays in the
       // foreign box, where fx already counts it, so EGP in the drawer is unmoved
-      fx: fx || null, egpIn: r2((fx ? -change : cashAmt + tip) + stipCash),
+      fx: fx || null, egpIn: r2(fx ? -change : cashAmt + tip + stipCash),
       cust: S.customer ? { id: S.customer.id, name: S.customer.name, phone: S.customer.phone } : null,
       disc: tt.disc, discInfo: S.disc,
       svcOn: S.svcOn, vatOn: S.vatOn,
+      // who signed for a waived charge. It was being set and then dropped when
+      // the ticket cleared, so the check itself said nothing.
+      svcBy: S.svcOn ? "" : (S.svcBy || ""), vatBy: S.vatOn ? "" : (S.vatBy || ""),
       lines: lines, sub: r2(tt.sub), service: r2(tt.srv), vat: r2(tt.vat), total: r2(tt.total),
       // the rates this check was actually charged at, so a later edit reprices
       // on them exactly rather than working them back out of rounded figures
@@ -3556,7 +3633,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   // a VAT-registered business has to show its registration on the invoice
   function taxLine() {
     var no = (S.settings.taxNo || "").trim();
-    return no ? '<div class="s">' + esc(t("Tax reg. no.")) + " " + esc(no) + "</div>" : "";
+    // 123-456-789 printed as 789-456-123: after an Arabic word the digits go
+    // right-to-left and the dashes go with them. Every other number on the
+    // slip is isolated; this one was not.
+    return no ? '<div class="s">' + esc(t("Tax reg. no.")) + " " + esc(ltr(no)) + "</div>" : "";
   }
   function receiptDate(o) {
     try { return whenStr(o.ts || new Date().toISOString()); } catch (e) { return o.time || ""; }
@@ -3588,10 +3668,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       }).join("") + "<hr>" +
       '<div class="l"><span>' + esc(t("Subtotal")) + "</span><span>" + money(o.sub) + "</span></div>" +
       (o.disc ? '<div class="l"><span>' + esc(t("Discount")) + "</span><span>" + minusSign() + money(o.disc) + "</span></div>" : "") +
-      (o.svcOn === false ? '<div class="l"><span>' + esc(t("Service")) + "</span><span>" + esc(t("not charged")) + "</span></div>"
+      (o.svcOn === false ? '<div class="l"><span>' + esc(t("Service")) +
+          (o.svcBy ? " \u00b7 " + esc(o.svcBy) : "") + "</span><span>" + esc(t("not charged")) + "</span></div>"
         : '<div class="l"><span>' + esc(t("Service")) +
           (o.svcRate ? " " + ltr(r2(o.svcRate * 100) + "%") : "") + "</span><span>" + money(o.service) + "</span></div>") +
-      (o.vatOn === false ? '<div class="l"><span>' + esc(t("VAT")) + "</span><span>" + esc(t("not charged")) + "</span></div>"
+      (o.vatOn === false ? '<div class="l"><span>' + esc(t("VAT")) +
+          (o.vatBy ? " \u00b7 " + esc(o.vatBy) : "") + "</span><span>" + esc(t("not charged")) + "</span></div>"
         : '<div class="l"><span>' + esc(t("VAT")) +
           (o.vatRate ? " " + ltr(r2(o.vatRate * 100) + "%") : "") + "</span><span>" + money(o.vat) + "</span></div>") +
       '<div class="l big"><span>' + esc(t("Total")) + " " + esc(o.currency) + "</span><span>" + money(o.total) + "</span></div>" +
@@ -3639,7 +3721,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function fillPrint(o, dup) {
     $("printArea").innerHTML = '<div class="c"><strong>EL EMPRATOUR</strong><br>' +
       esc(t("Restaurant & Bar · Sherry St, Sekala")) + "</div>" + taxLine() + "<hr>" + receiptBody(o, dup) +
-      '<hr><div class="c">' + esc(t("Thank you — see you again")) + "</div>";
+      // a cancelled check does not thank anybody for their visit
+      (o.void ? "" : '<hr><div class="c">' + esc(t("Thank you — see you again")) + "</div>");
   }
   function showReceipt(o, ran, backToTables, dup) {
     var warn = (ran && ran.length) ? '<hr><div style="color:var(--warn);font-size:12px">' + esc(t("Storage alert:")) +
@@ -3711,6 +3794,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     for (i = 0; i < kids.length; i++) {
       var el = kids[i];
       if (el.tagName === "HR") { out.push({ k: "hr" }); continue; }
+      // a banner is a centred line with nothing in the amount column; read as a
+      // two-column row it printed hard against one edge instead of in the middle
+      if (el.classList.contains("l") && !el.getElementsByTagName("span").length) {
+        out.push({ k: "c", a: el.textContent.trim(), big: true });
+        continue;
+      }
       if (el.classList.contains("l")) {
         var sp = el.getElementsByTagName("span");
         out.push({ k: "l",
@@ -3942,43 +4031,65 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     $(id + "En").addEventListener("click", function () { doPrint("en"); });
   }
 
+  /* Put the slip into another language, and hand back the undo. The page's
+     own dir/lang go with it: the print stylesheet lays the paper out by
+     direction, so an Arabic slip inside an ltr document printed its labels and
+     amounts the wrong way round and moved the full stop to the front. */
+  function againIn(lang) {
+    if (!lang || lang === LANG || !PRINT_FILL) return null;
+    var was = LANG, wasDir = document.documentElement.getAttribute("dir");
+    LANG = lang;
+    document.documentElement.setAttribute("dir", lang === "ar" ? "rtl" : "ltr");
+    document.documentElement.setAttribute("lang", lang);
+    try { PRINT_FILL(); }
+    catch (e) {
+      LANG = was;
+      if (wasDir) document.documentElement.setAttribute("dir", wasDir);
+      document.documentElement.setAttribute("lang", was);
+      return null;
+    }
+    return function () {
+      LANG = was;
+      if (wasDir) document.documentElement.setAttribute("dir", wasDir);
+      document.documentElement.setAttribute("lang", was);
+      try { PRINT_FILL(); } catch (e) {}
+      // the rest of the app was rendered in the other language while the print
+      // was up; put every screen back the way the person is reading it
+      try { paintStatic(); renderAll(); } catch (e) {}
+    };
+  }
+  function sysPrint(back) {
+    // the tablet's own print takes its picture whenever it gets round to it,
+    // so the other language has to stay up until it says it is done
+    if (back) {
+      var done = function () {
+        window.removeEventListener("afterprint", done);
+        var f = back; back = null; if (f) f();
+      };
+      window.addEventListener("afterprint", done);
+      setTimeout(done, 8000);
+    }
+    window.print();
+  }
   function doPrint(lang) {
-    var back = null;
-    if (lang && lang !== LANG && PRINT_FILL) {
-      var was = LANG;
-      LANG = lang;
-      try { PRINT_FILL(); }
-      catch (e) { LANG = was; try { PRINT_FILL(); } catch (e2) {} lang = null; }
-      if (lang) back = function () { LANG = was; try { PRINT_FILL(); } catch (e) {} };
-    }
-    if (!prnReady()) {                                 // no printer paired: as before
-      // the tablet's own print takes a picture of the page whenever it gets
-      // round to it, so the other language has to stay up until it is done
-      if (back) {
-        var done = function () {
-          window.removeEventListener("afterprint", done);
-          var f = back; back = null; if (f) f();
-        };
-        window.addEventListener("afterprint", done);
-        setTimeout(done, 20000);
-      }
-      window.print();
-      return;
-    }
+    var back = againIn(lang);
+    if (!prnReady()) { sysPrint(back); return; }        // no printer paired: as before
     if (PRN.busy) { toast(t("The printer is still working."), true); if (back) back(); return; }
     PRN.busy = true;
     var job;
     try { job = prnJob(prnCanvas()); }
-    catch (e) { PRN.busy = false; if (back) back(); window.print(); return; }
+    catch (e) { PRN.busy = false; sysPrint(back); return; }
     if (back) back();                     // the picture is taken; put the screen back
     prnSend(job).then(function () {
       PRN.busy = false; toast(t("Printed"));
     }).catch(function () {
       PRN.busy = false;
       // never leave the customer with no slip: fall back to the tablet's own
-      // print, which is what the till did before any of this existed
+      // print, which is what the till did before any of this existed. It has
+      // to be re-made in the language that was asked for — the screen has
+      // already been put back, so printing it now would hand over the wrong one.
       toast(t("The printer did not answer. Printing the usual way."), true);
-      setTimeout(function () { window.print(); }, 400);
+      setTimeout(function () { sysPrint(lang && lang !== LANG ? againIn(lang) : null); }, 400);
     });
   }
 
@@ -4222,17 +4333,22 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       // a refund is real money out of the drawer whether or not the check it
       // came off ended up voided, so it is counted before the void is skipped
       s.refunds += (Number(o.refund) || 0);
+      // The staff's tip is theirs from the moment it is handed over, so a
+      // cancelled check does not take it back off them — it stays in the pool
+      // and the cash stays in the drawer. Both used to be dropped along with
+      // the void, so the drawer read over by every tip on a voided check and
+      // the crew were never paid it.
+      s.stips += (Number(o.stip) || 0); s.stipCash += (Number(o.stipCash) || 0);
+      s.egpIn += (o.egpIn == null ? (o.cash || 0) : o.egpIn);
       if (o.void) { s.voids += 1; return; }
       // money over the bill that the customer left is ordinary revenue: it goes
       // straight into gross. s.tips keeps it visible as a breakdown line only,
       // and s.sub holds the real item subtotal so VAT still reconciles.
       var xtra = Number(o.tip) || 0;
+      // the staff's tip is deliberately kept out of gross — it was never the
+      // restaurant's to earn. It shows up only in the drawer and in the split.
       s.n += 1; s.gross += o.total + xtra; s.cash += (o.cash || 0); s.card += (o.card || 0);
       s.tips += xtra; s.sub += (Number(o.sub) || 0);
-      // the staff's tip is deliberately kept out of gross — it was never the
-      // restaurant's to earn. It only shows up in the drawer and in the split.
-      s.stips += (Number(o.stip) || 0); s.stipCash += (Number(o.stipCash) || 0);
-      s.egpIn += (o.egpIn == null ? (o.cash || 0) : o.egpIn);
       if (o.fx && o.fx.cur) s.fx[o.fx.cur] = Math.round(((s.fx[o.fx.cur] || 0) + o.fx.amt) * 100) / 100;
       s.disc += (o.disc || 0); s.vat += (o.vat || 0); s.srv += (o.service || 0);
       if (o.vatOn === false) s.noVat = (s.noVat || 0) + 1;
@@ -4248,14 +4364,27 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var pool = r2(Number(rec && rec.stips) || 0);
     var crew = (rec && rec.crew && rec.crew.length) ? rec.crew : [];
     var n = crew.length;
-    var each = n ? Math.floor((pool / n) * 100) / 100 : 0;
-    return { pool: pool, crew: crew, n: n, each: each, rest: r2(pool - each * n) };
+    // counted in piastres, because 0.29 * 100 in binary is 28.999999999999996
+    // and flooring that quietly kept a piastre back from a crew of one
+    var cents = Math.round(pool * 100);
+    var eachC = n ? Math.floor(cents / n) : 0;
+    return { pool: pool, crew: crew, n: n, each: eachC / 100, rest: (cents - eachC * n) / 100,
+      cash: r2(Number(rec && rec.stipCash) || 0) };
   }
   function tipLines(rec) {
     var sp = tipSplit(rec);
     if (!sp.pool && !sp.n) return "";
     return "<hr>" +
       '<div class="l big"><span>' + esc(t("Staff tips")) + "</span><span>" + money(sp.pool) + "</span></div>" +
+      // a tip added to a card never reached the drawer, so saying how much of
+      // the pool is actually cash is the difference between paying the crew
+      // and finding the drawer short by the rest
+      (sp.cash < sp.pool - 0.004
+        ? '<div class="l sm"><span>' + esc(t("of that, cash in the drawer")) + "</span><span>" +
+          money(sp.cash) + "</span></div>" +
+          '<div class="l sm"><span>' + esc(t("the rest came in on cards")) + "</span><span>" +
+          money(r2(sp.pool - sp.cash)) + "</span></div>"
+        : "") +
       (sp.n
         ? sp.crew.map(function (c) {
             return '<div class="l"><span dir="auto">' + esc(c.name) + "</span><span>" + money(sp.each) + "</span></div>";
@@ -4473,12 +4602,15 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         if (S.tab === "sales") renderSales();
         toast(t("Saved"));
       };
-      if (pay === "Cash" && !isMgr()) askManager(t("Cash out") + " · " + money(amt), save);
+      // only cash out used to be signed for, so a waiter could post a five
+      // thousand pound "bank" expense and knock it straight off the night's
+      // net income with nobody's name on it
+      if (!isMgr()) askManager(t("Expense") + " \u00b7 " + money(amt), save);
       else save(S.me);
     });
     setTimeout(function () { var el = $("xAmt"); if (el) { el.focus(); el.select(); } }, 50);
   }
-  $("addExpBtn").addEventListener("click", function () { expenseSheet(); });
+  $("addExpBtn").addEventListener("click", function () { if (needs("shift")) expenseSheet(); });
   $("expPanel").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-xdel]");
     if (!b) return;
@@ -4536,7 +4668,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     modal('<div class="padded stack">' +
       '<div class="duebar"><span>' + esc(t("Close shift")) + " " + S.shift.no + '</span><span class="num">' + money(s.gross) + "</span></div>" +
       (oc.length ? '<div class="panel padded" style="border-color:var(--bad);background:var(--bad-dim)">' +
-        '<strong style="color:var(--bad)">' + oc.length + " " + esc(t("tables still have an open check")) + "</strong>" +
+        '<strong style="color:var(--bad)">' + oc.length + " " +
+        esc(t(oc.length === 1 ? "table still has an open check" : "tables still have an open check")) + "</strong>" +
         '<div class="hint" style="margin-top:4px">' +
         esc(oc.map(function (p) { return (p.table || "—") + " " + money(p.total); }).join("   ·   ")) +
         "</div><div class=\"hint\" style=\"margin-top:4px\">" +
@@ -4548,8 +4681,9 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         "<dt>" + esc(t("Cash sales")) + "</dt><dd>" + money(s.cash) + "</dd>" +
         "<dt>" + esc(t("Card sales")) + "</dt><dd>" + money(s.card) + "</dd>" +
         (s.tips ? "<dt>" + esc(t("Extra kept")) + "</dt><dd>" + money(s.tips) + "</dd>" : "") +
-        (s.stips ? "<dt>" + esc(t("Staff tips \u2014 sitting in the drawer")) + "</dt><dd>" +
-          money(s.stips) + "</dd>" : "") +
+        (s.stips ? "<dt>" + esc(t("Staff tips")) + "</dt><dd>" + money(s.stips) +
+          (s.stipCash < s.stips - 0.004
+            ? " \u00b7 " + esc(t("cash")) + " " + money(s.stipCash) : "") + "</dd>" : "") +
         "<dt>" + esc(t("Cash out")) + "</dt><dd>" + minusSign() + money(xc) + "</dd>" +
         (shiftPayOut(S.shift.no) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>" + minusSign() +
           money(shiftPayOut(S.shift.no)) + "</dd>" : "") +
@@ -4566,11 +4700,19 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="acts"><button class="btn" id="cancelClose" type="button">' + esc(t("Back")) + "</button>" +
       '<button class="btn primary" id="doClose" type="button">' +
       esc(oc.length ? t("Close anyway") : t("Close shift")) + "</button></div>");
-    function typed() { return String($("counted").value).trim() !== ""; }
+    function typed() {
+      var v = String($("counted").value).trim();
+      // "abc" used to pass as a count and close the drawer at 0.00
+      return v !== "" && (num(v, 1e7) > 0 || /^[0٠]+([.,][0٠]+)?$/.test(v));
+    }
     function upd() {
       var el = $("diffVal");
       if (!typed()) { el.textContent = "—"; el.style.color = "var(--muted)"; return; }
-      var c = r2(Number($("counted").value) || 0), d = r2(c - expected);
+      // num(), like every other money box in the app: a count typed in Arabic
+      // numerals, or pasted with a thousands comma, showed the whole drawer
+      // missing on the screen the manager was signing, while doClose() quietly
+      // recorded a completely different figure
+      var c = r2(num($("counted").value, 1e7)), d = r2(c - expected);
       el.textContent = sgn(d, true);
       el.style.color = Math.abs(d) < 0.01 ? "var(--ok)" : "var(--bad)";
     }
@@ -4593,11 +4735,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var rec = { no: S.shift.no, by: S.shift.by, openedAt: S.shift.openedAt, float: S.shift.float,
       okBy: okBy ? okBy.name : (S.me ? S.me.name : ""),
       cashOut: xc || 0, expenses: xa || 0, tips: s.tips || 0, payOut: r2(shiftPayOut(S.shift.no)),
-      stips: r2(s.stips || 0), crew: (S.shift.crew || []).slice(),
-      net: s.gross - (xa || 0), fx: s.fx || {},
+      stips: r2(s.stips || 0), stipCash: r2(s.stipCash || 0), crew: (S.shift.crew || []).slice(),
+      // rounded on the way in: these are what the Excel and the cloud copy
+      // carry, and 490.20000000000005 in a book is a question waiting to be asked
+      net: r2(s.gross - (xa || 0)), fx: s.fx || {},
       closedBy: S.me ? S.me.name : "", closedAt: new Date().toISOString(), closedTs: Date.now(),
-      n: s.n, gross: s.gross, cash: s.cash, card: s.card, items: s.items, disc: s.disc, voids: s.voids,
-      expected: expected, counted: counted, diff: Math.round((counted - expected) * 100) / 100 };
+      n: s.n, gross: r2(s.gross), cash: r2(s.cash), card: r2(s.card), items: s.items,
+      disc: r2(s.disc), voids: s.voids,
+      expected: r2(expected), counted: r2(counted), diff: r2(counted - expected) };
     S.shifts.unshift(rec);
     S.shift = null;
     queueShift(); queueShiftClose(rec);
@@ -4878,6 +5023,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     setTimeout(function () { var el = $("mvQty"); if (el) { el.focus(); el.select(); } }, 50);
   }
   $("moveWarn").addEventListener("click", function (e) {
+    if (!needs("stock")) return;
     var b = e.target.closest("button[data-move]");
     if (b) askMove(b.dataset.move);
   });
@@ -5159,14 +5305,19 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var before = Number(ord.total) || 0;
     var oldCash = Number(ord.cash) || 0;
     var oldEgpIn = ord.egpIn == null ? oldCash : Number(ord.egpIn) || 0;
+    var oldStipCash = Number(ord.stipCash) || 0;
 
     var it = byId(l.id), di = {}, dn = {};
     if (it) {
       // give back the share of what this line ACTUALLY took off the shelf,
       // not the share of what it was billed for
       var share = l.qty ? qty / l.qty : 1;
-      if (it.track) {
-        var back0 = r3((l.took == null ? l.qty : l.took) * share);
+      // ONLY what this line is recorded as having taken off the shelf. The old
+      // fallback to l.qty invented stock whenever the item was not tracked at
+      // the time of sale and tracking was switched on afterwards — four pizzas
+      // sold off an untracked item became four pizzas on a shelf that had none.
+      if (it.track && l.took != null) {
+        var back0 = r3(l.took * share);
         it.stock = r3((Number(it.stock) || 0) + back0);
         di[it.id] = (di[it.id] || 0) + back0;
         if (l.took != null) l.took = r3(l.took - back0);
@@ -5174,8 +5325,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       (it.recipe || []).forEach(function (r) {
         var g = ingById(r.ing);
         if (!g) return;
-        var full = (l.tookIng && l.tookIng[g.id] != null) ? l.tookIng[g.id] : (Number(r.qty) || 0) * l.qty;
-        var back = r3(full * share);
+        // likewise: an ingredient added to the recipe after the sale was never
+        // taken out of the store, so a void must not put it back
+        if (!l.tookIng || l.tookIng[g.id] == null) return;
+        var back = r3(l.tookIng[g.id] * share);
         g.stock = r3((Number(g.stock) || 0) + back);
         dn[g.id] = r3((dn[g.id] || 0) + back);
         if (l.tookIng && l.tookIng[g.id] != null) l.tookIng[g.id] = r3(l.tookIng[g.id] - back);
@@ -5201,8 +5354,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     // with no sale behind it and the shift reads over at closing time
     if (ord.void && (Number(ord.tip) || 0)) { back = r2(back + ord.tip); ord.tip = 0; }
     // cash can only be handed back out of what this check actually put in
-    // the drawer — that is egpIn (which carries the extra), not o.cash
-    var fromCash = Math.min(Math.max(0, oldEgpIn), back);
+    // the drawer — that is egpIn (which carries the extra), not o.cash — and
+    // NEVER out of the staff's tip. That money stopped being the restaurant's
+    // the moment the customer handed it over; refunding out of it paid the
+    // customer with the waiters' money and left the card takings overstated.
+    var cashPool = Math.max(0, r2(oldEgpIn - oldStipCash));
+    var fromCash = Math.min(cashPool, back);
     var fromCard = r2(back - fromCash);
     ord.cash = Math.max(0, r2(oldCash - fromCash));
     ord.card = Math.max(0, r2((Number(ord.card) || 0) - fromCard));
@@ -5262,26 +5419,36 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         ord.void = true;
         ord.voidBy = who.name;
         ord.voidAt = new Date().toISOString();
-        // the cash for a voided check from an earlier shift leaves the drawer now
-        if (!S.shift || ord.shift !== S.shift.no) {
-          payOut(ord.egpIn == null ? (Number(ord.cash) || 0) : Number(ord.egpIn) || 0, "void", ord.ref);
-        }
+        // What actually goes back over the counter: the bill and anything the
+        // house kept over it. NOT the staff's tip — by now a waiter may have
+        // it in his pocket, and by the end of the shift he certainly has. If
+        // the manager wants to return it he takes it out as cash out, with
+        // his name on it. The void used to hand it back silently and the
+        // drawer came up short by every tip on a cancelled check.
+        var wasIn = ord.egpIn == null ? (Number(ord.cash) || 0) : Number(ord.egpIn) || 0;
+        var keep = Number(ord.stipCash) || 0;
+        var cashBack = Math.max(0, r2(wasIn - keep));
+        ord.refund = r2((Number(ord.refund) || 0) + (Number(ord.total) || 0) + (Number(ord.tip) || 0));
+        ord.tip = 0; ord.cash = 0; ord.card = 0;
+        ord.egpIn = keep;              // the tip is all this check leaves behind
+        if (!S.shift || ord.shift !== S.shift.no) payOut(cashBack, "void", ord.ref);
         var di = {}, dn = {};
         ord.lines.forEach(function (l) {
           var it = byId(l.id);
           if (!it) return;
           // give back exactly what the sale took, which on a short shelf is
           // less than the quantity sold
-          if (it.track) {
-            var back0 = l.took == null ? l.qty : l.took;
-            it.stock = r3((Number(it.stock) || 0) + back0);
-            di[it.id] = (di[it.id] || 0) + back0;
+          // only what the sale is recorded as having taken; an item that was
+          // untracked when it sold put nothing on the shelf to give back
+          if (it.track && l.took != null) {
+            it.stock = r3((Number(it.stock) || 0) + l.took);
+            di[it.id] = (di[it.id] || 0) + l.took;
           }
           (it.recipe || []).forEach(function (r) {
             var g = ingById(r.ing);
             if (!g) return;
-            var back = (l.tookIng && l.tookIng[g.id] != null)
-              ? l.tookIng[g.id] : (Number(r.qty) || 0) * l.qty;
+            if (!l.tookIng || l.tookIng[g.id] == null) return;
+            var back = l.tookIng[g.id];
             g.stock = r3((Number(g.stock) || 0) + back);
             dn[g.id] = r3((dn[g.id] || 0) + back);
           });
@@ -5631,6 +5798,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   }
   FXC.forEach(function (c) {
     $("fx" + c).addEventListener("change", function (e) {
+      if (!needs("setup")) return;
       S.settings.fx[c] = Math.max(0, num(e.target.value, 100000));
       saveConfig(); toast(t("Saved"));
     });
@@ -5680,6 +5848,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     });
   }
   $("trackAllBtn").addEventListener("click", function () {
+    if (!needs("setup")) return;
     var list = shownItems();
     if (!list.length) return;
     modal('<div class="padded stack"><h3>' + esc(t("Track all shown")) + "</h3>" +
@@ -5714,6 +5883,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     });
   });
   $("untrackAllBtn").addEventListener("click", function () {
+    if (!needs("setup")) return;
     var list = shownItems().filter(function (i) { return i.track; });
     if (!list.length) { toast(t("Saved")); return; }
     var deltas = {};
@@ -5727,6 +5897,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     toast(list.length + " " + t("items") + " · " + t("Saved"));
   });
   $("taPriceBtn").addEventListener("click", function () {
+    if (!needs("setup")) return;
     var list = shownItems();
     if (!list.length) return;
     modal('<div class="padded stack"><h3>' + esc(t("Takeaway prices")) + "</h3>" +
@@ -5884,10 +6055,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     }).join("") : '<div class="hint">—</div>';
   }
   $("addGroupBtn").addEventListener("click", function () {
+    if (!needs("setup")) return;
     S.groups.push({ id: "g" + uid(), name: "New group", ar: "", opts: [] });
     saveMenu(); renderGroups();
   });
   $("groupList").addEventListener("change", function (e) {
+    if (!needs("setup")) return;
     var wrap = e.target.closest("[data-g]");
     if (!wrap) return;
     var g = grpById(wrap.dataset.g);
@@ -5902,6 +6075,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     saveMenu(); toast(t("Saved"));
   });
   $("groupList").addEventListener("click", function (e) {
+    if (!needs("setup")) return;
     var add = e.target.closest("[data-oadd]"), gd = e.target.closest("[data-gdel]"), od = e.target.closest("[data-odel]");
     if (add) { var g = grpById(add.dataset.oadd); g.opts.push({ name: "Option", ar: "", price: 0 }); saveMenu(); renderGroups(); }
     if (gd) { S.groups = S.groups.filter(function (x) { return x.id !== gd.dataset.gdel; }); saveMenu(); renderGroups(); }
@@ -5928,6 +6102,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     saveMenu(); renderIngs();
   });
   $("ingList").addEventListener("change", function (e) {
+    if (!needs("setup")) return;
     var w = e.target.closest("[data-n]");
     if (!w) return;
     var g = ingById(w.dataset.n), f = e.target.closest("[data-nf]");
@@ -5937,6 +6112,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     saveMenu(); toast(t("Saved"));
   });
   $("ingList").addEventListener("click", function (e) {
+    if (!needs("setup")) return;
     var d = e.target.closest("[data-ndel]");
     if (!d) return;
     S.ings = S.ings.filter(function (x) { return x.id !== d.dataset.ndel; }); dropIx();
@@ -6375,6 +6551,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     else sum.push(["—", M(0)]);
     sum.push([B(t("Expenses")), BM(r2(xa))]);
     sum.push([t("Cash out"), M(r2(xc))]);
+    // refunds and voids paid back over the counter. They came out of the
+    // drawer and appeared in no exported book, only inside "expected cash",
+    // so the deduction was invisible to whoever reads these.
+    sum.push([t("Paid back out"), M(r2(dayPayOut(k)))]);
     sum.push([]);
     sum.push([B(t("Net income") + " " + cu), BM(r2(s.gross - xa))]);
 
