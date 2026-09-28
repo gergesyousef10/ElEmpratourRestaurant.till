@@ -5,7 +5,7 @@
    falls back to the cache the moment there is not; everything else is served
    from the cache and refreshed behind the scenes. */
 
-var CACHE = "ee-cashier-v28";
+var CACHE = "ee-cashier-v29";
 
 /* "./" and "index.html" are the SAME document. Caching both meant only the
    one the person happened to navigate to got refreshed, and the other stayed

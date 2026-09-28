@@ -352,6 +352,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 .quick button[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);
   color:var(--on-gold);font-weight:700}
 .quick button[aria-pressed="true"]::before{content:"\2713\00a0"}
+/* a crew button carries the person's job under their name, so nobody is ticked
+   by mistake because two of them are called Ahmed */
+#crewPick button{display:flex;flex-direction:column;gap:2px;line-height:1.25;font-size:14px;
+  min-height:52px;justify-content:center}
+#crewPick .rl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;opacity:.7;font-family:var(--mono)}
 .duebar{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
   font-family:var(--display);font-size:20px;font-weight:700;color:var(--gold-lt)}
 .duebar .num{font-family:var(--mono);font-size:19px}
@@ -418,6 +423,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   padding:9px 12px;border-bottom:1px solid var(--line)}
 .staffrow input,.staffrow select{background:var(--sunk);border:1px solid var(--line);border-radius:8px;
   padding:6px 8px;font-size:13.5px;width:100%}
+.staffrow .hint{font-size:11px;text-align:center;opacity:.6}
 .staffrow .me{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
 .del{border:1px solid var(--line-2);background:transparent;color:var(--txt-3);border-radius:8px;height:30px}
 .del:hover{color:var(--bad);border-color:var(--bad)}
@@ -834,8 +840,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   "use strict";
 
   var LS_KEY = "ee-cashier-v2";
-  var ROLES = { cashier: 1, supervisor: 2, manager: 3 };
-  var ROLE_LABEL = { cashier: "Cashier", supervisor: "Supervisor", manager: "Manager" };
+  /* "staff" is level 0 on purpose: a runner, a kitchen hand, a barback. They
+     are on the list so the tips can be divided properly, and they can open
+     nothing at all — there is no screen in the app they are allowed to see. */
+  var ROLES = { staff: 0, cashier: 1, supervisor: 2, manager: 3 };
+  var ROLE_LABEL = { staff: "Staff", cashier: "Cashier", supervisor: "Supervisor", manager: "Manager" };
+  /* Who the tip pool is divided between: everybody who works the floor and the
+     kitchen. The manager and the owner are not in it. */
+  function tipsGoTo(u) { return !!u && u.role !== "manager"; }
   var IDLE_MIN = 10;
   var CATS = ["Appetizers","Soup","Salad","Sandwich","Pasta","Pizza","Chicken","Beef","Seafood",
     "Desserts","Soft Drinks","Hot Drinks","Coffee","Iced Coffee","Fresh Juice","Milk Shake",
@@ -854,6 +866,9 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     "Light":"خفيف",
     "Normal":"عادي",
     "Darkest":"أغمق",
+    "Staff":"عامل",
+    "no sign-in":"من غير دخول",
+    "The tips are split equally between them at the end of the shift. Managers are not included.":"البقشيش بيتقسم عليهم بالتساوي آخر الوردية. المديرين مش معاهم.",
     "table still has an open check":"طاولة لسه عليها فاتورة مفتوحة",
     "Charge this check without service?":"الفاتورة دي من غير خدمة؟",
     "of that, cash in the drawer":"منه كاش في الدرج",
@@ -2470,7 +2485,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       setTimeout(function () { $("lock").classList.remove("bad"); }, 400);
       pin = ""; paintDots(); return;
     }
-    var hit = S.staff.filter(function (u) { return u.pin === hashPin(pin); })[0];
+    // a person with no access has no PIN on the record, and an empty PIN must
+    // never hash its way into a match
+    var hit = S.staff.filter(function (u) {
+      return u.pin && u.role !== "staff" && u.pin === hashPin(pin);
+    })[0];
     if (!hit) {
       pinBad += 1;
       if (pinBad >= 5) { pinUntil = Date.now() + 60000; pinBad = 0; }
@@ -4413,11 +4432,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         // the tip is split between the people who actually worked, so the till
         // has to be told who they are while anyone still remembers
         '<div><p class="eyebrow" style="margin:0 0 6px">' + esc(t("Who is working tonight")) + "</p>" +
-        '<div class="quick" id="crewPick">' + S.staff.map(function (u) {
+        // managers and the owner are not in the tip pool, so they are not on
+        // this list at all — it is the crew's money
+        '<div class="quick" id="crewPick">' + S.staff.filter(tipsGoTo).map(function (u) {
           return '<button type="button" data-u="' + esc(u.id) + '" aria-pressed="' +
-            (S.me && u.id === S.me.id) + '" dir="auto">' + esc(u.name) + "</button>";
+            (S.me && u.id === S.me.id) + '" dir="auto">' + esc(u.name) +
+            '<span class="rl">' + esc(roleLabel(u.role)) + "</span></button>";
         }).join("") + "</div>" +
-        '<p class="hint" style="margin:6px 0 0">' + esc(t("The tips are split equally between them at the end of the shift.")) + "</p></div>" +
+        '<p class="hint" style="margin:6px 0 0">' + esc(t("The tips are split equally between them at the end of the shift. Managers are not included.")) + "</p></div>" +
         '<div><button class="btn primary" id="openShiftBtn" type="button">' + esc(t("Open shift")) + "</button></div></div>";
       $("crewPick").addEventListener("click", function (e) {
         var b = e.target.closest("button[data-u]");
@@ -4648,8 +4670,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         if (u) crew.push({ id: u.id, name: u.name });
       }
     });
-    // nobody ticked: the person opening the till is at least here
-    if (!crew.length && S.me) crew = [{ id: S.me.id, name: S.me.name }];
+    // nobody ticked. It used to fall back to whoever opened the till, which on
+    // a manager's tablet handed him the whole pool. Better to leave it empty
+    // and say so on the report than to pay the wrong person.
+    if (!crew.length && S.me && tipsGoTo(S.me)) crew = [{ id: S.me.id, name: S.me.name }];
     S.settings.shiftNo = (Number(S.settings.shiftNo) || 0) + 1;
     S.shift = { no: S.settings.shiftNo, by: S.me.name, byId: S.me.id, openedAt: new Date().toISOString(),
       float: f, crew: crew };
@@ -6160,10 +6184,13 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     $("staffRows").innerHTML = S.staff.map(function (u) {
       return '<div class="staffrow" data-u="' + u.id + '">' +
         '<input data-s="name" value="' + esc(u.name) + '">' +
-        '<select data-s="role">' + ["cashier","supervisor","manager"].map(function (r) {
+        '<select data-s="role">' + ["staff","cashier","supervisor","manager"].map(function (r) {
           return '<option value="' + r + '"' + (u.role === r ? " selected" : "") + ">" + esc(roleLabel(r)) + "</option>";
         }).join("") + "</select>" +
-        '<input data-s="pin" type="text" inputmode="numeric" maxlength="4" placeholder="' + esc(t("New PIN")) + '">' +
+        (u.role === "staff"
+          ? '<span class="hint" style="align-self:center">' + esc(t("no sign-in")) + "</span>"
+          : '<input data-s="pin" type="text" inputmode="numeric" maxlength="4" placeholder="' +
+            esc(t("New PIN")) + '">') +
         (S.me && S.me.id === u.id ? '<span class="me">' + esc(t("You")) + "</span>"
           : '<button class="del" type="button" data-du="' + u.id + '">✕</button>') + "</div>";
     }).join("");
@@ -6182,6 +6209,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         if (!others.length) { toast(t("Keep at least one manager."), true); f.value = "manager"; return; }
       }
       u.role = f.value;
+      // no access means no way in: leave a working PIN on the record and it is
+      // a key to a door that is supposed to be gone
+      if (u.role === "staff") u.pin = "";
+      renderStaff();
     }
     if (k === "pin") {
       var v = f.value.replace(/\D/g, "");
