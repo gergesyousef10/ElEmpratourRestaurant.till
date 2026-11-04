@@ -880,6 +880,20 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
   /* ============ language ============ */
   var LANG = "en";
   var AR = {
+    "Shift reports go to the owner's email.":"تقارير الورديات بتتبعت على إيميل صاحب المطعم.",
+    "Shift closed":"الوردية اتقفلت","The full report has gone to the owner's email.":"التقرير الكامل اتبعت على إيميل صاحب المطعم.",
+    "The full report will go to the owner's email as soon as there is internet.":"التقرير الكامل هيتبعت على إيميل صاحب المطعم أول ما النت يرجع.",
+    "Automatic email to the owner":"إيميل تلقائي لصاحب المطعم",
+    "Every time a shift closes, the full shift report and the day's Excel are emailed to you by themselves. The tablet then shows no totals to anyone without a manager PIN, and saves no Excel files of its own.":"كل ما وردية تتقفل، تقرير الوردية الكامل و ملف إكسل اليوم بيتبعتولك على الإيميل لوحدهم. التابلت ساعتها مش بيعرض أي أرقام لحد من غير PIN المدير، و مش بيحفظ ملفات إكسل عنده.",
+    "Write your email above first.":"اكتب إيميلك فوق الأول.",
+    "1. Copy this script":"1. انسخ السكريبت ده","Copy the script":"انسخ السكريبت","Copied":"اتنسخ",
+    "Open script.google.com, start a new project, delete what is there and paste this. Then Deploy → New deployment → type Web app → Execute as: Me → Who has access: Anyone → Deploy, and allow it.":"افتح script.google.com، اعمل مشروع جديد، امسح اللي فيه و الصق ده. بعدين Deploy ← New deployment ← النوع Web app ← Execute as: Me ← Who has access: Anyone ← Deploy، و وافق على الصلاحيات.",
+    "2. Paste the Web app URL here":"2. الصق لينك الـ Web app هنا",
+    "Send a test":"ابعت تجربة","Test sent — check your inbox.":"التجربة اتبعتت — شوف الإيميل.",
+    "Could not send. Check the link and that the script is deployed for Anyone.":"مقدرتش أبعت. اتأكد من اللينك و إن السكريبت متنشر لـ Anyone.",
+    "Waiting to send":"مستني يتبعت","Last email":"آخر إيميل","Never":"لسه",
+    "If you change your email, copy the script again and deploy it again.":"لو غيرت الإيميل، انسخ السكريبت تاني و انشره تاني.",
+    "Turn off":"إيقاف","Test email from the till":"إيميل تجربة من الكاشير",
     "InstaPay":"إنستاباي","Vodafone Cash":"فودافون كاش","On the house":"ضيافة",
     "InstaPay sales":"مبيعات إنستاباي","Vodafone Cash sales":"مبيعات فودافون كاش",
     "Paid with":"اتدفع بـ","Hospitality":"الضيافة","Hospitality checks":"شيكات الضيافة",
@@ -2431,7 +2445,8 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
 
   /* ============ access ============ */
   var TABS = ["order", "tables", "kitchen", "shift", "stock", "sales", "setup"];
-  var TAB_LEVEL = { order: 1, tables: 1, kitchen: 1, shift: 1, stock: 2, sales: 2, setup: 3 };
+  // the sales screen is the owner's: nobody below a manager sees the totals
+  var TAB_LEVEL = { order: 1, tables: 1, kitchen: 1, shift: 1, stock: 2, sales: 3, setup: 3 };
   function can(area) { return !!S.me && (ROLES[S.me.role] || 0) >= (TAB_LEVEL[area] || 3); }
   function isMgr() { return !!S.me && S.me.role === "manager"; }
 
@@ -4745,6 +4760,16 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") === "true" ? "false" : "true");
       });
       $("openShiftBtn").addEventListener("click", openShift);
+    } else if (!isMgr()) {
+      // the crew sees that the shift is open and can close it — no money
+      box.innerHTML = '<div class="tiles">' + tile(t("Shift"), S.shift.no, "gold") +
+        (openChecks().length ? tile(t("Open checks"), openChecks().length, "warn") : "") + "</div>" +
+        '<div class="panel padded stack"><dl class="kv">' +
+          "<dt>" + esc(t("Opened by")) + "</dt><dd>" + esc(S.shift.by) + "</dd>" +
+          "<dt>" + esc(t("Opened at")) + "</dt><dd>" + esc(whenStr(S.shift.openedAt)) + "</dd>" +
+        "</dl>" +
+        '<div><button class="btn primary" id="closeShiftBtn" type="button">' + esc(t("Close shift")) + "</button></div></div>";
+      $("closeShiftBtn").addEventListener("click", askCloseShift);
     } else {
       var s = sums(shiftOrders(S.shift.no));
       var xc = sumExp(shiftExpenses(S.shift.no), true);
@@ -4787,7 +4812,9 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
       esc(myClock() ? t("Clock out") : t("Clock in")) + "</button></div></div>";
     $("clockBtn").addEventListener("click", toggleClock);
 
-    $("shiftHistory").innerHTML = S.shifts.length ? S.shifts.slice(0, 30).map(function (r) {
+    $("shiftHistory").innerHTML = !isMgr()
+      ? '<div class="empty">' + esc(t("Shift reports go to the owner's email.")) + "</div>"
+      : S.shifts.length ? S.shifts.slice(0, 30).map(function (r) {
       return '<details class="ord"><summary><span class="no">#' + r.no + "</span>" +
         '<span class="when">' + esc(whenStr(r.openedAt)) + " → " + esc(whenStr(r.closedAt)) + "</span>" +
         '<span class="pill ' + (Math.abs(r.diff) < 0.01 ? "ok" : "low") + '">' +
@@ -4987,8 +5014,11 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     var xc = sumExp(shiftExpenses(S.shift.no), true);
     var xa = sumExp(shiftExpenses(S.shift.no));
     var expected = S.shift.float + s.egpIn - xc - shiftPayOut(S.shift.no);
+    // a blind count: whoever is not a manager counts the drawer without being
+    // told what it should hold, and never sees whether it came out short
+    var blind = !isMgr();
     modal('<div class="padded stack">' +
-      '<div class="duebar"><span>' + esc(t("Close shift")) + " " + S.shift.no + '</span><span class="num">' + money(s.gross) + "</span></div>" +
+      '<div class="duebar"><span>' + esc(t("Close shift")) + " " + S.shift.no + '</span><span class="num">' + (blind ? "" : money(s.gross)) + "</span></div>" +
       (oc.length ? '<div class="panel padded" style="border-color:var(--bad);background:var(--bad-dim)">' +
         '<strong style="color:var(--bad)">' + oc.length + " " +
         esc(t(oc.length === 1 ? "table still has an open check" : "tables still have an open check")) + "</strong>" +
@@ -4997,7 +5027,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         "</div><div class=\"hint\" style=\"margin-top:4px\">" +
         esc(t("That money is not counted in this shift. They stay open for the next one.")) +
         " · " + esc(t("Total")) + " " + money(ocTotal) + "</div></div>" : "") +
-      '<dl class="kv">' +
+      (blind ? "" : '<dl class="kv">' +
         "<dt>" + esc(t("Orders")) + "</dt><dd>" + s.n + "</dd>" +
         "<dt>" + esc(t("Opening float")) + "</dt><dd>" + money(S.shift.float) + "</dd>" +
         "<dt>" + esc(t("Cash sales")) + "</dt><dd>" + money(s.cash) + "</dd>" +
@@ -5011,14 +5041,14 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
           money(shiftPayOut(S.shift.no)) + "</dd>" : "") +
         fxRows(s.fx).map(function (r) { return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("") +
         "<dt>" + esc(t("Net income")) + "</dt><dd>" + money(s.gross - xa) + "</dd>" +
-        "<dt>" + esc(t("Expected in drawer")) + '</dt><dd class="big">' + money(expected) + "</dd></dl>" +
+        "<dt>" + esc(t("Expected in drawer")) + '</dt><dd class="big">' + money(expected) + "</dd></dl>") +
       '<div class="fld"><label for="counted">' + esc(t("Counted cash in drawer")) + "</label>" +
       // deliberately EMPTY. it used to arrive pre-filled with the expected
       // figure rounded to the pound, which both invented a difference of a
       // few piastres on almost every shift and let a shift be closed without
       // anybody actually counting the drawer
       '<input class="big-in" id="counted" type="text" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></div>' +
-      '<div class="duebar"><span>' + esc(t("Difference")) + '</span><span class="num" id="diffVal">—</span></div></div>' +
+      '<div class="duebar"' + (blind ? " hidden" : "") + "><span>" + esc(t("Difference")) + '</span><span class="num" id="diffVal">—</span></div></div>' +
       '<div class="acts"><button class="btn" id="cancelClose" type="button">' + esc(t("Back")) + "</button>" +
       '<button class="btn primary" id="doClose" type="button">' +
       esc(oc.length ? t("Close anyway") : t("Close shift")) + "</button></div>");
@@ -5097,6 +5127,24 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
       // minus at the far end of the number where nobody reads it
       esc(t("Difference")) + "</span><span>" + sgn(rec.diff, true) + "</span></div>" + tipLines(rec); }
     var body = shiftBody();
+    queueMail({ kind: "shift", no: rec.no });
+
+    if (!isMgr()) {
+      // the crew still needs the tip shares; everything else is the owner's
+      modal('<div class="rcpt"><div class="rh"><div class="n">' + esc(t("Shift closed")) + "</div>" +
+        '<div class="s">' + esc(t("Shift")) + " " + rec.no + "</div></div>" +
+        '<div class="l"><span>' + esc(t("Counted")) + "</span><span>" + money(rec.counted) + "</span></div>" +
+        tipLines(rec) + "<hr>" +
+        '<div class="l sm"><span>' + esc(S.settings.mailHook
+          ? (navigator.onLine ? t("The full report has gone to the owner's email.")
+            : t("The full report will go to the owner's email as soon as there is internet."))
+          : t("Shift reports go to the owner's email.")) + "</span><span></span></div></div>" +
+        '<div class="acts"><button class="btn primary" id="okShift" type="button">' + esc(t("Done")) + "</button></div>");
+      $("okShift").addEventListener("click", closeModal);
+      if (autoLocal()) saveDayAuto(dayKey(new Date(rec.closedAt)));
+      cloudBackup(dayKey(new Date(rec.closedAt)));
+      return;
+    }
 
     modal('<div class="rcpt"><div class="rh"><div class="n">' + esc(t("Shift report")) + "</div>" +
       '<div class="s">El Empratour · ' + esc(t("Shift")) + " " + rec.no + "</div></div>" + body + "</div>" +
@@ -5110,7 +5158,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     $("prShift").addEventListener("click", function () { doPrint("ar"); });
     $("mailShift").addEventListener("click", function () { sendDay(dayKey(new Date(rec.closedAt))); });
     $("okShift").addEventListener("click", closeModal);
-    if (S.settings.autoXls !== false) saveDayAuto(dayKey(new Date(rec.closedAt)));
+    if (autoLocal()) saveDayAuto(dayKey(new Date(rec.closedAt)));
     cloudBackup(dayKey(new Date(rec.closedAt)));   // and a dated copy in the cloud
   }
 
@@ -5948,6 +5996,23 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
   function renderXls() {
     var auto = S.settings.autoXls !== false;
     var canDir = !!window.showDirectoryPicker;
+    var hook = S.settings.mailHook || "", hasTo = !!(S.settings.mailTo || "").trim();
+    var mailBox = '<p class="eyebrow" style="margin:0">' + esc(t("Automatic email to the owner")) + "</p>" +
+      '<p class="hint" style="margin:0">' + esc(t("Every time a shift closes, the full shift report and the day's Excel are emailed to you by themselves. The tablet then shows no totals to anyone without a manager PIN, and saves no Excel files of its own.")) + "</p>" +
+      (hasTo
+        ? '<p class="eyebrow" style="margin:0">' + esc(t("1. Copy this script")) + "</p>" +
+          '<p class="hint" style="margin:0">' + esc(t("Open script.google.com, start a new project, delete what is there and paste this. Then Deploy → New deployment → type Web app → Execute as: Me → Who has access: Anyone → Deploy, and allow it.")) + "</p>" +
+          '<textarea id="mailScript" readonly rows="6" style="width:100%;font-family:var(--mono);font-size:11px" dir="ltr">' + esc(mailScript()) + "</textarea>" +
+          '<div class="t-tools" style="max-width:420px"><button type="button" id="mailCopy">' + esc(t("Copy the script")) + "</button></div>" +
+          '<div class="fld" style="max-width:520px"><label for="mailHook">' + esc(t("2. Paste the Web app URL here")) + "</label>" +
+          '<input id="mailHook" type="url" inputmode="url" dir="ltr" placeholder="https://script.google.com/macros/s/…/exec" value="' + esc(hook) + '"></div>' +
+          '<p class="hint" style="margin:0">' + esc(t("If you change your email, copy the script again and deploy it again.")) + "</p>" +
+          (hook ? '<dl class="kv"><dt>' + esc(t("Waiting to send")) + "</dt><dd>" + mailQ().length + "</dd>" +
+            "<dt>" + esc(t("Last email")) + "</dt><dd>" + esc(mailLast() ? whenStr(new Date(mailLast()).toISOString()) : t("Never")) + "</dd></dl>" +
+            '<div class="t-tools" style="max-width:420px"><button type="button" id="mailTest">' + esc(t("Send a test")) + "</button>" +
+            '<button type="button" id="mailOff">' + esc(t("Turn off")) + "</button></div>" : "")
+        : '<p class="hint" style="margin:0;color:var(--warn)">' + esc(t("Write your email above first.")) + "</p>") +
+      '<hr style="border:0;border-top:1px solid var(--line);margin:6px 0">';
     $("xlsPanel").innerHTML = '<div class="stack">' +
       '<p class="hint" style="margin:0">' + esc(t("A full workbook for each day: summary, every order, items sold, expenses, shifts and stock.")) + "</p>" +
       '<p class="hint" style="margin:0">' + esc(t("A second file, Empratour-backup-DATE.json, is saved beside it. Excel is for reading; that one puts the till back if the tablet is ever wiped. Keep both.")) + "</p>" +
@@ -5961,6 +6026,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         "<dt>" + esc(t("Today's copy")) + "</dt><dd>" + esc(sentLabel(dayKey())) + "</dd></dl>" +
       '<div class="fld" style="max-width:340px"><label for="mailTo">' + esc(t("Your email")) + "</label>" +
       '<input id="mailTo" type="email" inputmode="email" value="' + esc(S.settings.mailTo || "") + '"></div>' +
+      '<hr style="border:0;border-top:1px solid var(--line);margin:6px 0">' + mailBox +
       '<div class="t-tools" style="max-width:420px">' +
         '<button type="button" id="mailNow">' + esc(t("Send the day")) + "</button>" +
         '<button type="button" id="xlsNow">' + esc(t("Save today now")) + "</button>" +
@@ -5991,7 +6057,35 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     $("mailNow").addEventListener("click", function () { sendDay(dayKey()); });
     $("mailTo").addEventListener("change", function (e) {
       S.settings.mailTo = (e.target.value || "").trim();
-      saveConfig(); toast(t("Saved"));
+      saveConfig(); toast(t("Saved")); setTimeout(renderXls, 0);
+    });
+    if ($("mailCopy")) $("mailCopy").addEventListener("click", function () {
+      var ta = $("mailScript"), txt = mailScript();
+      var done = function () { toast(t("Copied")); };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(txt).then(done, function () { ta.select(); document.execCommand("copy"); done(); }); }
+        else { ta.select(); document.execCommand("copy"); done(); }
+      } catch (e) { ta.select(); }
+    });
+    if ($("mailHook")) $("mailHook").addEventListener("change", function (e) {
+      var v = (e.target.value || "").trim();
+      if (v && !/^https:\/\/script\.google(usercontent)?\.com\//.test(v)) { toast(t("Could not send. Check the link and that the script is deployed for Anyone."), true); return; }
+      S.settings.mailHook = v; saveConfig(); setTimeout(renderXls, 0); toast(t("Saved"));
+    });
+    if ($("mailOff")) $("mailOff").addEventListener("click", function () {
+      S.settings.mailHook = ""; saveConfig(); renderXls(); toast(t("Saved"));
+    });
+    if ($("mailTest")) $("mailTest").addEventListener("click", function () {
+      var b = $("mailTest"); b.disabled = true;
+      mailPayload({ kind: "test" }).then(function (p) { return postMail(p, true); })
+        .then(function () { toast(t("Test sent — check your inbox.")); })
+        .catch(function () {
+          // the reply may simply be unreadable from here; send it the normal way too
+          return mailPayload({ kind: "test" }).then(function (p) { return postMail(p, false); })
+            .then(function () { toast(t("Test sent — check your inbox.")); },
+                  function () { toast(t("Could not send. Check the link and that the script is deployed for Anyone."), true); });
+        })
+        .then(function () { if ($("mailTest")) $("mailTest").disabled = false; });
     });
     if ($("xlsPick")) $("xlsPick").addEventListener("click", function () {
       window.showDirectoryPicker({ mode: "readwrite" }).then(function (h) {
@@ -7455,7 +7549,8 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
   /* On the first day of a new month the one just finished is complete, so it
      is written and offered for sending — once, and never again. */
   function autoMonthly() {
-    if (S.settings.autoXls === false) return;
+    if (S.settings.mailHook) { mailMonthIfDue(); return; }
+    if (!autoLocal()) return;
     var mk = prevMonth();
     if (!monthDays(mk).length) return;
     var sent = S.settings.sentMonths || {};
@@ -7467,6 +7562,149 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
       toast(t("Last month's Excel saved") + " \u00b7 " + monthXlsName(mk));
     });
   }
+
+  /* ============ email to the owner ============
+     A Google Apps Script web app in the owner's own Gmail does the sending, so
+     there is no server to run and nothing to pay. Jobs wait on THIS device
+     until they are delivered, so a shift closed with no internet still goes. */
+  var MAILQ_KEY = LS_KEY + ":mailq", MAILLAST_KEY = LS_KEY + ":maillast";
+  function autoLocal() { return S.settings.autoXls !== false && !S.settings.mailHook; }
+  function mailQ() { try { return JSON.parse(localStorage.getItem(MAILQ_KEY) || "[]") || []; } catch (e) { return []; } }
+  function setMailQ(q) { try { localStorage.setItem(MAILQ_KEY, JSON.stringify(q.slice(-60))); } catch (e) {} }
+  function mailLast() { try { return Number(localStorage.getItem(MAILLAST_KEY)) || 0; } catch (e) { return 0; } }
+  function mailKey() {
+    if (!S.settings.mailKey) {
+      var a = new Uint8Array(18);
+      try { crypto.getRandomValues(a); } catch (e) { for (var i = 0; i < a.length; i++) a[i] = Math.random() * 256; }
+      S.settings.mailKey = Array.prototype.map.call(a, function (x) { return ("0" + x.toString(16)).slice(-2); }).join("");
+      saveConfig();
+    }
+    return S.settings.mailKey;
+  }
+  function mailScript() {
+    return [
+      "// El Empratour Cashier - sends the till's reports to the owner.",
+      "// Deploy > New deployment > Web app. Execute as: Me. Who has access: Anyone.",
+      "var TO = " + JSON.stringify((S.settings.mailTo || "").trim()) + ";",
+      "var KEY = " + JSON.stringify(mailKey()) + ";",
+      "",
+      "function doPost(e) {",
+      "  var d = JSON.parse(e.postData.contents);",
+      "  if (d.key !== KEY) return ContentService.createTextOutput(\"denied\");",
+      "  var files = (d.files || []).map(function (f) {",
+      "    return Utilities.newBlob(Utilities.base64Decode(f.b64), f.type, f.name);",
+      "  });",
+      "  MailApp.sendEmail({ to: TO, subject: d.subject, body: d.text, attachments: files });",
+      "  return ContentService.createTextOutput(\"ok\");",
+      "}",
+      ""
+    ].join("\n");
+  }
+  function queueMail(job) {
+    if (!S.settings.mailHook) return;
+    job.id = uid() + uid(); job.at = Date.now();
+    var q = mailQ(); q.push(job); setMailQ(q);
+    setTimeout(pumpMail, 1500);
+  }
+  function blobB64(blob) {
+    return new Promise(function (res, rej) {
+      var r = new FileReader();
+      r.onload = function () { res(String(r.result).split(",")[1] || ""); };
+      r.onerror = function () { rej(r.error); };
+      r.readAsDataURL(blob);
+    });
+  }
+  var XLS_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  function shiftText(rec) {
+    var L = [
+      "EL EMPRATOUR — " + t("Shift report") + " " + rec.no,
+      t("Opened") + ": " + whenStr(rec.openedAt) + " · " + rec.by,
+      t("Closed") + ": " + whenStr(rec.closedAt) + " · " + rec.closedBy + (rec.okBy && rec.okBy !== rec.closedBy ? " (" + rec.okBy + ")" : ""),
+      "",
+      t("Orders") + ": " + rec.n,
+      t("Items sold") + ": " + rec.items,
+      t("Gross") + ": " + money(rec.gross) + " " + cur(),
+      t("Cash sales") + ": " + money(rec.cash),
+      t("Card sales") + ": " + money(rec.card)
+    ];
+    moreRows(rec).forEach(function (r) { L.push(r[0] + ": " + r[1]); });
+    if (rec.tips) L.push(t("Extra kept") + ": " + money(rec.tips));
+    L.push(t("Discounts") + ": " + money(rec.disc || 0));
+    L.push(t("Voided") + ": " + (rec.voids || 0));
+    L.push(t("Expenses") + ": " + money(rec.expenses || 0));
+    L.push(t("Net income") + ": " + money(rec.net == null ? rec.gross : rec.net) + " " + cur());
+    L.push("");
+    L.push(t("Opening float") + ": " + money(rec.float));
+    if (rec.cashOut) L.push(t("Cash out") + ": " + money(rec.cashOut));
+    if (rec.payOut) L.push(t("Paid back out") + ": " + money(rec.payOut));
+    fxRows(rec.fx).forEach(function (r) { L.push(r[0] + ": " + r[1]); });
+    L.push(t("Expected in drawer") + ": " + money(rec.expected));
+    L.push(t("Counted") + ": " + money(rec.counted));
+    L.push(t("Difference") + ": " + sgn(rec.diff, true));
+    if (rec.stips) {
+      var sp = tipSplit(rec);
+      L.push(t("Staff tips") + ": " + money(sp.pool) + (sp.n ? " · " + money(sp.each) + " " + t("each") : ""));
+    }
+    return L.join("\n");
+  }
+  function mailPayload(job) {
+    var p = { key: mailKey(), subject: "", text: "", files: [] }, blob = null, name = "";
+    if (job.kind === "shift") {
+      var rec = S.shifts.filter(function (r) { return r.no === job.no; })[0];
+      if (!rec) return Promise.resolve(null);              // gone (restored over): nothing to send
+      var k = dayKey(new Date(rec.closedAt));
+      p.subject = "El Empratour · " + t("Shift report") + " " + rec.no + " · " + k;
+      p.text = shiftText(rec) + "\n\n" + daySummaryText(k);
+      try { blob = new Blob([dayWorkbook(k)], { type: XLS_TYPE }); name = xlsName(k); } catch (e) {}
+    } else if (job.kind === "month") {
+      p.subject = "El Empratour · " + t("Month report") + " " + job.mk;
+      p.text = monthSummaryText(job.mk);
+      try { blob = new Blob([monthWorkbook(job.mk)], { type: XLS_TYPE }); name = monthXlsName(job.mk); } catch (e) {}
+    } else {
+      p.subject = "El Empratour · " + t("Test email from the till");
+      p.text = t("Test email from the till") + " · " + whenStr(new Date().toISOString());
+    }
+    if (!blob) return Promise.resolve(p);
+    return blobB64(blob).then(function (b) { p.files.push({ name: name, type: XLS_TYPE, b64: b }); return p; });
+  }
+  // no-cors: the request reaches Google either way, and an Apps Script reply
+  // cannot always be read across origins. Only a test asks to read it.
+  function postMail(p, read) {
+    return fetch(S.settings.mailHook, { method: "POST", mode: read ? "cors" : "no-cors", redirect: "follow",
+      body: JSON.stringify(p) })
+      .then(function (r) {
+        if (!read) return "sent";
+        return r.text().then(function (x) { if (String(x).trim() !== "ok") throw new Error(x || "bad"); return x; });
+      });
+  }
+  var mailBusy = false;
+  function pumpMail() {
+    if (mailBusy || !S.settings.mailHook || !navigator.onLine) return;
+    var q = mailQ();
+    if (!q.length) return;
+    var job = q[0];
+    mailBusy = true;
+    mailPayload(job).then(function (p) { return p ? postMail(p, false) : "skip"; })
+      .then(function () {
+        setMailQ(mailQ().filter(function (j) { return j.id !== job.id; }));
+        try { localStorage.setItem(MAILLAST_KEY, String(Date.now())); } catch (e) {}
+        if (job.kind === "month") markMonthSent(job.mk);
+        mailBusy = false;
+        if (S.tab === "setup") renderXls();
+        setTimeout(pumpMail, 1000);
+      })
+      .catch(function () { mailBusy = false; });          // tried again later
+  }
+  function mailMonthIfDue() {
+    var mk = prevMonth();
+    if (!monthDays(mk).length) return;
+    if ((S.settings.sentMonths || {})[mk]) return;
+    if (mailQ().some(function (j) { return j.kind === "month" && j.mk === mk; })) return;
+    queueMail({ kind: "month", mk: mk });
+  }
+  window.addEventListener("online", function () { setTimeout(pumpMail, 3000); });
+  setInterval(pumpMail, 5 * 60 * 1000);
+  setTimeout(pumpMail, 20000);
 
   function sendDay(k) {
     var files = dayFiles(k), text = daySummaryText(k);
@@ -7521,7 +7759,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     return t3;
   }
   function autoDailyXls() {
-    if (S.settings.autoXls === false) return;
+    if (!autoLocal()) return;
     var today = dayKey();
     var done = S.settings.xlsDone || {};
     // A file saved when shift 1 closed holds lunch only. If anything happened
