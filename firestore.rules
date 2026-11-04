@@ -1,0 +1,29 @@
+rules_version = '2';
+
+// El Empratour Cashier — Firestore security rules
+// قواعد الحماية: الكاشير بس (الحساب اللي في config.js) يقدر يقرا ويكتب.
+//
+// The app stores everything under  sites/{site}/state/*, sites/{site}/sales/*
+// and sites/{site}/backups/*. Only the till account may touch it; everything
+// else in the database is closed.
+//
+// If you change "email" in config.js, change it here too.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isTill() {
+      return request.auth != null
+        && request.auth.token.email == "till@empratour.app";
+    }
+
+    match /sites/{site}/{section}/{docId} {
+      allow read, write: if isTill()
+        && section in ["state", "sales", "backups"];
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
