@@ -341,6 +341,14 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 .paybtn{border:1px solid var(--line-2);background:var(--raise);border-radius:10px;padding:13px 8px;
   font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--txt-2)}
 .paybtn[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:var(--on-gold)}
+.paybtn.comp{border-style:dashed;color:var(--txt-2)}
+.tbl:disabled{opacity:.45;cursor:not-allowed}
+.tbl.here{border-color:var(--gold);background:var(--gold-dim)}
+.splitrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.splitrow .nm{flex:1;min-width:0}
+.splitrow .q{display:flex;align-items:center;gap:6px}
+.splitrow .q button{width:38px;height:38px;border-radius:10px;border:1px solid var(--line-2);background:var(--raise);color:inherit;font-size:18px}
+.splitrow .q .v{min-width:44px;text-align:center;font-family:var(--mono)}
 .big-in{width:100%;background:var(--sunk);border:1px solid var(--line-2);border-radius:10px;
   padding:12px 14px;font-family:var(--mono);font-size:21px;text-align:end;color:var(--txt)}
 .quick{display:flex;gap:6px;flex-wrap:wrap}
@@ -512,7 +520,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   .mhead{display:none}
   .staffrow{grid-template-columns:1fr 1fr;gap:6px}
   .staffrow input[data-s="name"]{grid-column:1/-1;font-weight:600}
-  .paygrid{grid-template-columns:1fr}
+  .paygrid{grid-template-columns:repeat(2,1fr)}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
@@ -619,6 +627,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
               <button type="button" id="noteBtn" data-t="Note">Note</button>
               <button type="button" id="parkBtn" data-t="Park">Park</button>
               <button type="button" id="billBtn" data-t="Bill">Bill</button>
+              <button type="button" id="splitBtn" data-t="Split bill">Split bill</button>
             </div>
             <div class="hint" id="ticketMeta"></div>
           </div>
@@ -863,6 +872,21 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   /* ============ language ============ */
   var LANG = "en";
   var AR = {
+    "InstaPay":"إنستاباي","Vodafone Cash":"فودافون كاش","On the house":"ضيافة",
+    "InstaPay sales":"مبيعات إنستاباي","Vodafone Cash sales":"مبيعات فودافون كاش",
+    "Paid with":"اتدفع بـ","Hospitality":"الضيافة","Hospitality checks":"شيكات الضيافة",
+    "Give this check on the house?":"تعمل الشيك ده ضيافة؟",
+    "Nothing is charged, but the items still come out of stock so the count stays right.":"مفيش فلوس هتتحسب، بس الأصناف هتتخصم من المخزن عشان الجرد يفضل مظبوط.",
+    "ON THE HOUSE":"ضيافة","Approved by":"وافق عليها","Value":"القيمة",
+    "Move table":"نقل الطاولة","Move to table":"انقل لطاولة","Moved to table":"اتنقلت لطاولة",
+    "That table already has an open check.":"الطاولة دي عليها شيك مفتوح.",
+    "Split check":"تقسيم الشيك","Split bill":"تقسيم","Pay this part":"ادفع الجزء ده",
+    "Choose what this person is paying for. The rest stays on the check.":"اختار الحاجات اللي الشخص ده هيدفعها. الباقي هيفضل على الشيك.",
+    "This part":"الجزء ده","Left on the check":"الباقي على الشيك",
+    "Choose at least one item.":"اختار صنف واحد على الأقل.",
+    "That is the whole check. Use Pay instead.":"ده الشيك كله. استخدم زرار الدفع على طول.",
+    "Add at least two items to split the check.":"لازم يبقى فيه صنفين على الأقل عشان تقسم الشيك.",
+    "Part paid. The rest is still on the check.":"الجزء اتدفع. الباقي لسه على الشيك.",
     "How dark the print is":"درجة سواد الطباعة",
     "Light":"خفيف",
     "Normal":"عادي",
@@ -2966,7 +2990,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   // Parking used to rely on the 800 ms debounce and then blanked the ticket
   // underneath it, so a check parked quickly was never written down at all.
   function saveTableTicket() {
-    if (!S.table) return;
+    if (!S.table || S.splitting) return;
     if (!S.cart.length) { releaseTable(); return; }
     if (!S.editing) S.editing = "p" + uid();
     S.cart = cleanCart(S.cart);
@@ -3084,16 +3108,34 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   });
 
   $("tblBtn").addEventListener("click", function () {
-    modal('<div class="padded stack"><h3>' + esc(t("Table")) + "</h3>" +
+    // with a check already on a table this is "move it", and a table that has
+    // its own open check cannot be picked: saving onto it used to wipe that
+    // table's check off the floor plan
+    var moving = !!(S.table && S.cart.length);
+    modal('<div class="padded stack"><h3>' + esc(moving ? t("Move to table") : t("Table")) + "</h3>" +
       '<div class="tablegrid">' + S.tables.map(function (x) {
-        return '<button type="button" class="tbl" data-tbl="' + esc(x.name) + '"><span class="nm">' + esc(x.name) + "</span></button>";
+        var p = parkedFor(x.name), here = x.name === S.table;
+        var taken = !!(p && !here && p.id !== S.editing);
+        return '<button type="button" class="tbl' + (here ? " here" : "") + (taken ? " busy" : "") +
+          '" data-tbl="' + esc(x.name) + '"' + (taken ? " disabled" : "") +
+          '><span class="nm">' + esc(x.name) + "</span>" +
+          (taken ? '<span class="amt num">' + money(p.total) + "</span>" : "") + "</button>";
       }).join("") + "</div></div>" +
       '<div class="acts"><button class="btn" id="tNo" type="button">' + esc(t("Cancel")) + "</button></div>", "wide");
     $("tNo").addEventListener("click", closeModal);
     $("modalMount").querySelector(".tablegrid").addEventListener("click", function (e) {
       var b = e.target.closest("button[data-tbl]");
-      if (!b) return;
+      if (!b || b.disabled) return;
+      var p = parkedFor(b.dataset.tbl);
+      if (p && p.id !== S.editing && b.dataset.tbl !== S.table) {
+        toast(t("That table already has an open check."), true); return;
+      }
+      var from = S.table;
       S.table = b.dataset.tbl; S.type = "Dine-in";
+      if (from && from !== S.table && S.cart.length) {
+        clearTimeout(parkT); saveTableTicket();
+        toast(t("Moved to table") + " " + S.table);
+      }
       Array.prototype.forEach.call(document.querySelectorAll(".seg button"), function (x) {
         x.setAttribute("aria-pressed", String(x.dataset.type === "Dine-in"));
       });
@@ -3248,6 +3290,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     renderTables(); updateBadges();
   }
   $("billBtn").addEventListener("click", printBill);
+  $("splitBtn").addEventListener("click", openSplit);
 
   $("parkBtn").addEventListener("click", function () {
     if (!S.cart.length) return;
@@ -3394,10 +3437,18 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     openPay();
   });
 
-  function openPay() {
-    var tt = totals();
+  /* Card, InstaPay and Vodafone Cash are all money that never enters the
+     drawer. They share the order's "card" amount so every bit of drawer and
+     refund arithmetic stays exactly as it was; "ch" says which one it was. */
+  var ELEC = ["Card", "InstaPay", "Vodafone Cash"];
+  function isElec(m) { return ELEC.indexOf(m) >= 0; }
+
+  /* split: { cart, disc } — pay only that part of the ticket on screen */
+  function openPay(split) {
+    var tt = split ? partTotals(split) : totals();
     var due = Math.round(tt.total * 100) / 100;
     var method = "Cash";
+    var splitCh = "Card";
     var payCur = "EGP";
     var keepTip = false;            // "keep the change" — counted, not handed back
     /* The staff's tip is NOT the restaurant's money and never enters its
@@ -3421,8 +3472,15 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         '</span><span class="num" id="grandVal">' + money(due) + "</span></div>" +
       '<div class="paygrid"><button type="button" class="paybtn" data-pm="Cash" aria-pressed="true">' + esc(t("Cash")) + "</button>" +
       '<button type="button" class="paybtn" data-pm="Card" aria-pressed="false">' + esc(t("Card")) + "</button>" +
-      '<button type="button" class="paybtn" data-pm="Split" aria-pressed="false">' + esc(t("Split")) + "</button></div>" +
-      '<div id="cardArea" hidden><div class="fld"><label for="cardAmt">' + esc(t("Card amount")) + "</label>" +
+      '<button type="button" class="paybtn" data-pm="InstaPay" aria-pressed="false">' + esc(t("InstaPay")) + "</button>" +
+      '<button type="button" class="paybtn" data-pm="Vodafone Cash" aria-pressed="false">' + esc(t("Vodafone Cash")) + "</button>" +
+      '<button type="button" class="paybtn" data-pm="Split" aria-pressed="false">' + esc(t("Split")) + "</button>" +
+      '<button type="button" class="paybtn comp" data-comp="1">' + esc(t("On the house")) + "</button></div>" +
+      '<div id="cardArea" hidden class="stack">' +
+        '<div class="seg" id="chSeg">' + ELEC.map(function (c) {
+          return '<button type="button" data-ch="' + c + '" aria-pressed="' + (c === "Card") + '">' + esc(t(c)) + "</button>";
+        }).join("") + "</div>" +
+        '<div class="fld"><label for="cardAmt" id="cardLbl">' + esc(t("Card amount")) + "</label>" +
       '<input class="big-in" id="cardAmt" type="text" inputmode="decimal" min="0" step="1" value="0"></div></div>' +
       '<div id="cashArea" class="stack">' +
         (avail.length ? '<div class="seg" id="curSeg"><button type="button" data-c="EGP" aria-pressed="true">' +
@@ -3451,7 +3509,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     function cardPart() {
       // a NEGATIVE card amount used to be accepted, which booked negative
       // card takings and inflated the cash expected in the drawer
-      return method === "Card" ? grand() : (method === "Split" ? Math.max(0, Math.min(grand(), num($("cardAmt").value, 1e7))) : 0);
+      return isElec(method) ? grand() : (method === "Split" ? Math.max(0, Math.min(grand(), num($("cardAmt").value, 1e7))) : 0);
     }
     function drawQuick() {
       var notes = payCur === "EGP" ? EGP_NOTES : FX_NOTES;
@@ -3468,12 +3526,16 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       $("grandBar").hidden = !(stip > 0.004);
       $("grandVal").textContent = money(grand());
       $("confirmPay").textContent = t("Charge") + " " + money(grand());
-      var got = method === "Card" ? 0 : Math.max(0, num($("tender").value, 1e7));
+      var got = isElec(method) ? 0 : Math.max(0, num($("tender").value, 1e7));
       var gotEgp = Math.round(got * rate() * 100) / 100;
-      $("cardArea").hidden = method === "Cash";
-      $("cashArea").hidden = method === "Card";
+      $("cardArea").hidden = method !== "Split";
+      $("cashArea").hidden = isElec(method);
+      $("cardLbl").textContent = splitCh === "Card" ? t("Card amount") : t(splitCh);
+      Array.prototype.forEach.call($("chSeg").children, function (x) {
+        x.setAttribute("aria-pressed", String(x.dataset.ch === splitCh));
+      });
       var fl = $("fxLine"), fl2 = $("fxLine2");
-      if (payCur === "EGP" || method === "Card") { fl.hidden = true; fl2.hidden = true; }
+      if (payCur === "EGP" || isElec(method)) { fl.hidden = true; fl2.hidden = true; }
       else {
         fl.hidden = false; fl2.hidden = false;
         fl.children[0].textContent = t("Due in") + " " + payCur + " @ " + money(rate());
@@ -3490,10 +3552,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       Array.prototype.forEach.call($("extraSeg").children, function (x) {
         x.setAttribute("aria-pressed", String((x.dataset.x === "1") === keepTip));
       });
-      $("confirmPay").disabled = method !== "Card" && gotEgp + 0.001 < need;
+      $("confirmPay").disabled = !isElec(method) && gotEgp + 0.001 < need;
     }
 
     $("modalMount").querySelector(".paygrid").addEventListener("click", function (e) {
+      if (e.target.closest("button[data-comp]")) { askComp(split); return; }
       var b = e.target.closest("button[data-pm]");
       if (!b) return;
       method = b.dataset.pm;
@@ -3540,6 +3603,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       var n = Number(b.dataset.tp);
       setTip(n ? r2(stip + n) : 0);
     });
+    $("chSeg").addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-ch]");
+      if (!b) return;
+      splitCh = b.dataset.ch;
+      upd();
+    });
     $("tender").addEventListener("input", upd);
     $("cardAmt").addEventListener("input", function () { $("tender").value = needFx(); upd(); });
     $("quick").addEventListener("click", function (e) {
@@ -3553,26 +3622,172 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     $("confirmPay").addEventListener("click", function () {
       var card = cardPart();
       var need = Math.max(0, grand() - card);
-      var got = method === "Card" ? 0 : Math.max(0, num($("tender").value, 1e7));
+      var got = isElec(method) ? 0 : Math.max(0, num($("tender").value, 1e7));
       var gotEgp = Math.round(got * rate() * 100) / 100;
       var over = Math.max(0, Math.round((gotEgp - need) * 100) / 100);
       var tip = keepTip ? over : 0;
       var change = keepTip ? 0 : over;
-      var fx = (payCur === "EGP" || method === "Card" || !got) ? null
+      var fx = (payCur === "EGP" || isElec(method) || !got) ? null
         : { cur: payCur, rate: rate(), amt: got, egp: gotEgp };
       // the bill is settled before the tip is: whatever the card covers goes
       // against what is owed first, so the staff's share is never booked as
       // a sale that was not made
       var saleCard = Math.min(card, due), stipCard = r2(card - saleCard);
       var saleCash = r2(due - saleCard), stipCash = r2(stip - stipCard);
-      commitOrder(tt, method, saleCard, saleCash, change, fx, tip, stip, stipCash);
+      var ch = isElec(method) ? method : (method === "Split" && card > 0.004 ? splitCh : "");
+      var go = function () { commitOrder(tt, method, saleCard, saleCash, change, fx, tip, stip, stipCash, { ch: ch }); };
+      if (split) commitPart(split, go); else go();
     });
     drawQuick();
     upd();
     setTimeout(function () { var el = $("tender"); if (el) { el.focus(); el.select(); } }, 60);
   }
 
-  function commitOrder(tt, method, cardAmt, cashAmt, change, fx, tip, stip, stipCash) {
+  /* ---- paying part of a check ----
+     The ticket on screen is never touched while the payment dialog is open, so
+     backing out of it (Back, Escape, a tap outside) leaves the check exactly
+     as it was. Only at the moment of charging is the part swapped in, sold
+     like any other check, and what is left put straight back on the table. */
+  function partTotals(split) {
+    var keepC = S.cart, keepD = S.disc;
+    S.cart = split.cart; S.disc = split.disc;
+    try { return totals(); } finally { S.cart = keepC; S.disc = keepD; }
+  }
+  function commitPart(split, go) {
+    clearTimeout(parkT);
+    var keep = { cart: S.cart, table: S.table, type: S.type, note: S.note, customer: S.customer,
+      disc: S.disc, editing: S.editing, svcOn: S.svcOn, vatOn: S.vatOn, svcBy: S.svcBy, vatBy: S.vatBy };
+    var before = S.counter;
+    S.splitting = true;
+    S.cart = split.cart; S.disc = split.disc;
+    // no held check id while the part is sold: commitOrder must not release the table
+    S.editing = null;
+    try { go(); } finally { S.splitting = false; }
+    var sold = S.counter !== before;
+    S.cart = sold ? split.rest : keep.cart;
+    S.table = keep.table; S.type = keep.type; S.note = keep.note; S.customer = keep.customer;
+    S.disc = sold ? split.restDisc : keep.disc;
+    S.editing = keep.editing; S.svcOn = keep.svcOn; S.vatOn = keep.vatOn;
+    S.svcBy = keep.svcBy; S.vatBy = keep.vatBy;
+    Array.prototype.forEach.call(document.querySelectorAll(".seg button[data-type]"), function (x) {
+      x.setAttribute("aria-pressed", String(x.dataset.type === S.type));
+    });
+    if (sold && S.table) saveTableTicket();
+    renderTicket(); renderItems(); updateBadges();
+    if (sold) toast(t("Part paid. The rest is still on the check."));
+  }
+  function cartCopy(l, qty) {
+    return { uid: uid(), id: l.id, qty: qty, opts: (l.opts || []).slice(), note: l.note || "",
+      px: Number(l.px) > 0 ? Number(l.px) : 0 };
+  }
+  function openSplit() {
+    if (!S.cart.length) { toast(t("Nothing on the ticket yet."), true); return; }
+    if (!S.shift) { toast(t("Open a shift before taking orders."), true); setTab("shift"); return; }
+    var count = S.cart.reduce(function (a, l) { return a + l.qty; }, 0);
+    if (count < 2) { toast(t("Add at least two items to split the check."), true); return; }
+    var pick = S.cart.map(function () { return 0; });
+    function build() {
+      var part = [], rest = [];
+      S.cart.forEach(function (l, i) {
+        if (pick[i] > 0) part.push(cartCopy(l, pick[i]));
+        if (l.qty - pick[i] > 0) {
+          rest.push(pick[i] ? cartCopy(l, l.qty - pick[i]) : {
+            uid: l.uid, id: l.id, qty: l.qty, opts: (l.opts || []).slice(), note: l.note || "",
+            px: Number(l.px) > 0 ? Number(l.px) : 0 });
+        }
+      });
+      // a percentage comes off every part; a fixed amount is used up by the
+      // first part and only what is left of it stays on the check
+      var disc = S.disc, partDisc = disc, restDisc = disc;
+      if (disc && disc.kind !== "%") {
+        var keepC = S.cart; S.cart = part;
+        var used = totals().disc;
+        S.cart = keepC;
+        partDisc = disc;
+        var left = r2(Math.max(0, (Number(disc.value) || 0) - used));
+        restDisc = left > 0 ? { kind: disc.kind, value: left, by: disc.by, ok: disc.ok } : null;
+      }
+      return { cart: part, rest: rest, disc: partDisc, restDisc: restDisc };
+    }
+    function draw() {
+      var b = build();
+      var pt = b.cart.length ? partTotals(b).total : 0;
+      var rt = b.rest.length ? partTotals({ cart: b.rest, disc: b.restDisc }).total : 0;
+      $("splitRows").innerHTML = S.cart.map(function (l, i) {
+        return '<div class="splitrow"><span class="nm" dir="auto">' + l.qty + " × " + esc(lineName(l)) + "</span>" +
+          '<span class="q"><button type="button" data-sm="' + i + '">−</button>' +
+          '<span class="v">' + pick[i] + "</span>" +
+          '<button type="button" data-sp="' + i + '">+</button>' +
+          '<button type="button" data-sa="' + i + '" style="width:auto;padding:0 10px;font-size:13px">' + esc(t("All")) + "</button></span></div>";
+      }).join("");
+      $("splitPart").textContent = money(pt);
+      $("splitRest").textContent = money(rt);
+    }
+    modal('<div class="padded stack"><h3>' + esc(t("Split check")) + "</h3>" +
+      '<p class="hint" style="margin:0">' + esc(t("Choose what this person is paying for. The rest stays on the check.")) + "</p>" +
+      '<div id="splitRows"></div>' +
+      '<div class="duebar"><span>' + esc(t("This part")) + '</span><span class="num" id="splitPart">0.00</span></div>' +
+      '<div class="row"><span>' + esc(t("Left on the check")) + '</span><span class="num" id="splitRest">0.00</span></div></div>' +
+      '<div class="acts"><button class="btn" id="splitNo" type="button">' + esc(t("Cancel")) + "</button>" +
+      '<button class="btn primary" id="splitYes" type="button">' + esc(t("Pay this part")) + "</button></div>");
+    $("splitRows").addEventListener("click", function (e) {
+      var b = e.target.closest("button");
+      if (!b) return;
+      if (b.dataset.sp != null) { var i = +b.dataset.sp; pick[i] = Math.min(S.cart[i].qty, pick[i] + 1); }
+      else if (b.dataset.sm != null) { var j = +b.dataset.sm; pick[j] = Math.max(0, pick[j] - 1); }
+      else if (b.dataset.sa != null) { var k = +b.dataset.sa; pick[k] = pick[k] === S.cart[k].qty ? 0 : S.cart[k].qty; }
+      draw();
+    });
+    $("splitNo").addEventListener("click", closeModal);
+    $("splitYes").addEventListener("click", function () {
+      var b = build();
+      if (!b.cart.length) { toast(t("Choose at least one item."), true); return; }
+      if (!b.rest.length) { toast(t("That is the whole check. Use Pay instead."), true); return; }
+      // write the held check down first, so the table is safe whatever happens next
+      if (S.table) flushTable();
+      var keepC = S.cart; S.cart = b.cart;
+      var bad = cartShortages();
+      S.cart = keepC;
+      if (bad.length) { toast(t("Not enough") + " " + bad[0] + " " + t("in storage."), true); return; }
+      openPay(b);
+    });
+    draw();
+  }
+
+  /* ---- on the house ----
+     Sold at nothing, signed for by a manager. It is a real check in every way
+     the stock cares about — every item and ingredient comes off the shelf — so
+     the count matches what actually left the kitchen and the bar. */
+  function askComp(split) {
+    var tt = split ? partTotals(split) : totals();
+    modal('<div class="padded stack"><h3>' + esc(t("Give this check on the house?")) + "</h3>" +
+      '<p class="hint" style="margin:0">' + esc(t("Nothing is charged, but the items still come out of stock so the count stays right.")) + "</p>" +
+      '<div class="duebar"><span>' + esc(t("Value")) + '</span><span class="num">' + money(tt.sub) + "</span></div></div>" +
+      '<div class="acts"><button class="btn" id="compNo" type="button">' + esc(t("Back")) + "</button>" +
+      '<button class="btn primary" id="compYes" type="button">' + esc(t("On the house")) + "</button></div>");
+    $("compNo").addEventListener("click", function () { openPay(split); });
+    $("compYes").addEventListener("click", function () {
+      askManager(t("Give this check on the house?"), function (who) {
+        var by = who ? who.name : (S.me ? S.me.name : "");
+        var go = function () {
+          var keepD = S.disc, keepS = S.svcOn, keepV = S.vatOn, keepSB = S.svcBy, keepVB = S.vatBy;
+          var before = S.counter;
+          S.disc = { kind: "%", value: 100, by: by, ok: true, comp: true };
+          S.svcOn = false; S.vatOn = false; S.svcBy = by; S.vatBy = by;
+          var t2 = totals();
+          commitOrder(t2, "On the house", 0, 0, 0, null, 0, 0, 0,
+            { comp: true, compBy: by, compVal: r2(t2.sub), disc: 0 });
+          if (S.counter === before) {     // not saved: put the ticket back as it was
+            S.disc = keepD; S.svcOn = keepS; S.vatOn = keepV; S.svcBy = keepSB; S.vatBy = keepVB;
+            renderTicket();
+          }
+        };
+        if (split) commitPart(split, go); else go();
+      }, function () { openPay(split); });
+    });
+  }
+
+  function commitOrder(tt, method, cardAmt, cashAmt, change, fx, tip, stip, stipCash, extra) {
     tip = Math.max(0, Number(tip) || 0);
     stip = Math.max(0, Number(stip) || 0);
     stipCash = Math.max(0, Math.min(stip, Number(stipCash) || 0));
@@ -3615,6 +3830,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       vatRate: S.vatOn ? (Number(S.settings.vat) || 0) / 100 : 0,
       currency: cur(), kds: "new", void: false
     };
+    if (extra) Object.keys(extra).forEach(function (k) { if (extra[k] !== "" && extra[k] != null) order[k] = extra[k]; });
+    if (extra && extra.comp) order.disc = 0;
 
     var di = {}, dn = {}, touched = [];
     lines.forEach(function (l) {
@@ -3675,7 +3892,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       return;
     }
 
-    var hadTable = S.table;
+    // a part of a split check: the table still has the rest, so stay on it
+    var hadTable = S.splitting ? "" : S.table;
     releaseTable();
 
     queueStock(di, dn);
@@ -3747,6 +3965,11 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         : "") +
       // on an edited check cash/card already have the refund taken off them,
       // so add it back here — otherwise the slip shows the money leaving twice
+      (o.comp ? '<div class="l big" style="justify-content:center">' + esc(t("ON THE HOUSE")) + "</div>" +
+        '<div class="l"><span>' + esc(t("Approved by")) + "</span><span>" + esc(o.compBy || "") + "</span></div>" +
+        '<div class="l"><span>' + esc(t("Value")) + "</span><span>" + money(o.compVal || 0) + "</span></div>" : "") +
+      (o.pay === "Split" && o.ch && o.ch !== "Card" && o.card ? '<div class="l"><span>' + esc(t(o.ch)) +
+        "</span><span>" + money(o.card) + "</span></div>" : "") +
       '<div class="l"><span>' + esc(t("Paid by")) + " " + esc(t(o.pay)) + "</span><span>" +
         money((o.card || 0) + (o.cash || 0) + (Number(o.refund) || 0) + (Number(o.stip) || 0)) + "</span></div>" +
       // what the customer actually handed over. without this line a check paid
@@ -4387,8 +4610,24 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     });
     return out.sort(function (a, b) { return a.ts < b.ts ? 1 : -1; });
   }
+  // wallet and hospitality lines, shown only when there is something to show
+  function moreRows(s) {
+    var r = [];
+    if (s.ip) r.push([t("InstaPay sales"), money(s.ip)]);
+    if (s.vf) r.push([t("Vodafone Cash sales"), money(s.vf)]);
+    if (s.comp) r.push([t("Hospitality checks"), s.comp + " · " + money(s.compVal || 0)]);
+    return r;
+  }
+  function moreKv(s) {
+    return moreRows(s).map(function (r) { return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("");
+  }
+  function moreL(s) {
+    return moreRows(s).map(function (r) {
+      return '<div class="l"><span>' + esc(r[0]) + "</span><span>" + esc(r[1]) + "</span></div>"; }).join("");
+  }
   function sums(list) {
-    var s = { n: 0, gross: 0, sub: 0, cash: 0, card: 0, items: 0, disc: 0, voids: 0, vat: 0, srv: 0,
+    var s = { n: 0, gross: 0, sub: 0, cash: 0, card: 0, ip: 0, vf: 0, comp: 0, compVal: 0,
+              items: 0, disc: 0, voids: 0, vat: 0, srv: 0,
               tips: 0, stips: 0, stipCash: 0, refunds: 0, egpIn: 0, fx: {}, noVat: 0, noSrv: 0 };
     list.forEach(function (o) {
       // a refund is real money out of the drawer whether or not the check it
@@ -4408,7 +4647,16 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       var xtra = Number(o.tip) || 0;
       // the staff's tip is deliberately kept out of gross — it was never the
       // restaurant's to earn. It shows up only in the drawer and in the split.
-      s.n += 1; s.gross += o.total + xtra; s.cash += (o.cash || 0); s.card += (o.card || 0);
+      if (o.comp) {
+        // given away: no money, not a sale, but the items did leave the shelf
+        s.comp += 1; s.compVal += (Number(o.compVal) || 0);
+        o.lines.forEach(function (l) { s.items += l.qty; });
+        return;
+      }
+      s.n += 1; s.gross += o.total + xtra; s.cash += (o.cash || 0);
+      if (o.ch === "InstaPay") s.ip += (o.card || 0);
+      else if (o.ch === "Vodafone Cash") s.vf += (o.card || 0);
+      else s.card += (o.card || 0);
       s.tips += xtra; s.sub += (Number(o.sub) || 0);
       if (o.fx && o.fx.cur) s.fx[o.fx.cur] = Math.round(((s.fx[o.fx.cur] || 0) + o.fx.amt) * 100) / 100;
       s.disc += (o.disc || 0); s.vat += (o.vat || 0); s.srv += (o.service || 0);
@@ -4505,7 +4753,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           "<dt>" + esc(t("Opened at")) + "</dt><dd>" + esc(whenStr(S.shift.openedAt)) + "</dd>" +
           "<dt>" + esc(t("Opening float")) + "</dt><dd>" + money(S.shift.float) + "</dd>" +
           "<dt>" + esc(t("Cash sales")) + "</dt><dd>" + money(s.cash) + "</dd>" +
-          "<dt>" + esc(t("Card sales")) + "</dt><dd>" + money(s.card) + "</dd>" +
+          "<dt>" + esc(t("Card sales")) + "</dt><dd>" + money(s.card) + "</dd>" + moreKv(s) +
           (s.tips ? "<dt>" + esc(t("Extra kept")) + "</dt><dd>" + money(s.tips) + "</dd>" : "") +
           (s.stips ? "<dt>" + esc(t("Staff tips")) + "</dt><dd>" + money(s.stips) + "</dd>" : "") +
           "<dt>" + esc(t("Discounts")) + "</dt><dd>" + money(s.disc) + "</dd>" +
@@ -4543,7 +4791,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           "<dt>" + esc(t("Orders")) + "</dt><dd>" + r.n + "</dd>" +
           "<dt>" + esc(t("Opening float")) + "</dt><dd>" + money(r.float) + "</dd>" +
           "<dt>" + esc(t("Cash sales")) + "</dt><dd>" + money(r.cash) + "</dd>" +
-          "<dt>" + esc(t("Card sales")) + "</dt><dd>" + money(r.card) + "</dd>" +
+          "<dt>" + esc(t("Card sales")) + "</dt><dd>" + money(r.card) + "</dd>" + moreKv(r) +
           (r.tips ? "<dt>" + esc(t("Extra kept")) + "</dt><dd>" + money(r.tips) + "</dd>" : "") +
           "<dt>" + esc(t("Expenses")) + "</dt><dd>" + minusSign() + money(r.expenses || 0) + "</dd>" +
           ((r.cashOut || 0) ? "<dt>" + esc(t("Cash out")) + "</dt><dd>" + minusSign() + money(r.cashOut) + "</dd>" : "") +
@@ -4745,7 +4993,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         "<dt>" + esc(t("Orders")) + "</dt><dd>" + s.n + "</dd>" +
         "<dt>" + esc(t("Opening float")) + "</dt><dd>" + money(S.shift.float) + "</dd>" +
         "<dt>" + esc(t("Cash sales")) + "</dt><dd>" + money(s.cash) + "</dd>" +
-        "<dt>" + esc(t("Card sales")) + "</dt><dd>" + money(s.card) + "</dd>" +
+        "<dt>" + esc(t("Card sales")) + "</dt><dd>" + money(s.card) + "</dd>" + moreKv(s) +
         (s.tips ? "<dt>" + esc(t("Extra kept")) + "</dt><dd>" + money(s.tips) + "</dd>" : "") +
         (s.stips ? "<dt>" + esc(t("Staff tips")) + "</dt><dd>" + money(s.stips) +
           (s.stipCash < s.stips - 0.004
@@ -4807,6 +5055,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       net: r2(s.gross - (xa || 0)), fx: s.fx || {},
       closedBy: S.me ? S.me.name : "", closedAt: new Date().toISOString(), closedTs: Date.now(),
       n: s.n, gross: r2(s.gross), cash: r2(s.cash), card: r2(s.card), items: s.items,
+      ip: r2(s.ip || 0), vf: r2(s.vf || 0), comp: s.comp || 0, compVal: r2(s.compVal || 0),
       disc: r2(s.disc), voids: s.voids,
       expected: r2(expected), counted: r2(counted), diff: r2(counted - expected) };
     S.shifts.unshift(rec);
@@ -4824,7 +5073,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="l"><span>' + esc(t("Expenses")) + "</span><span>" + minusSign() + money(rec.expenses) + "</span></div>" +
       '<div class="l"><span>' + esc(t("Voided")) + "</span><span>" + rec.voids + "</span></div>" +
       '<div class="l"><span>' + esc(t("Cash sales")) + "</span><span>" + money(rec.cash) + "</span></div>" +
-      '<div class="l"><span>' + esc(t("Card sales")) + "</span><span>" + money(rec.card) + "</span></div>" +
+      '<div class="l"><span>' + esc(t("Card sales")) + "</span><span>" + money(rec.card) + "</span></div>" + moreL(rec) +
       (rec.tips ? '<div class="l"><span>' + esc(t("Extra kept")) + "</span><span>" + money(rec.tips) + "</span></div>" : "") +
       '<div class="l"><span>' + esc(t("Gross")) + " " + esc(cur()) + "</span><span>" + money(rec.gross) + "</span></div>" +
       '<div class="l big"><span>' + esc(t("Net income")) + " " + esc(cur()) + "</span><span>" + money(rec.net) + "</span></div><hr>" +
@@ -5256,7 +5505,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     $("reportGrid").innerHTML =
       block(t("By payment"), [
         [t("Cash"), money(s.cash)], [t("Card"), money(s.card)]
-      ].concat(s.tips ? [[t("Extra kept"), money(s.tips)]] : []).concat(fxRows(s.fx)).concat([
+      ].concat(moreRows(s)).concat(s.tips ? [[t("Extra kept"), money(s.tips)]] : []).concat(fxRows(s.fx)).concat([
         [t("Service"), money(s.srv)], [t("VAT"), money(s.vat)]
       ])) +
       block(t("By category"), sortRows(byCat, function (k) { return t(k); })) +
@@ -5362,6 +5611,8 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     var vat = r2((net + srv) * vatRate);
     o.sub = sub; o.disc = disc; o.service = srv; o.vat = vat;
     o.total = r2(net + srv + vat);      // the sum of the rows as printed
+    // on the house: the value given away follows the items left on it
+    if (o.comp) { o.compVal = sub; o.disc = 0; }
   }
 
   function removeFromOrder(ord, ix, qty, who) {
@@ -5540,7 +5791,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       '<div class="l"><span>' + esc(t("Average ticket")) + "</span><span>" +
         money(s.n ? s.gross / s.n : 0) + "</span></div>" +
       '<div class="l"><span>' + esc(t("Cash sales")) + "</span><span>" + money(s.cash) + "</span></div>" +
-      '<div class="l"><span>' + esc(t("Card sales")) + "</span><span>" + money(s.card) + "</span></div>" +
+      '<div class="l"><span>' + esc(t("Card sales")) + "</span><span>" + money(s.card) + "</span></div>" + moreL(s) +
       (s.tips ? '<div class="l"><span>' + esc(t("Extra kept")) + "</span><span>" + money(s.tips) + "</span></div>" : "") +
       fxRows(s.fx).map(function (r) {
         return '<div class="l"><span>' + esc(r[0]) + "</span><span>" + esc(r[1]) + "</span></div>"; }).join("") +
@@ -6658,6 +6909,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       [H(t("By payment")), H(cu)],
       [t("Cash"), M(r2(s.cash))],
       [t("Card"), M(r2(s.card))],
+      [t("InstaPay"), M(r2(s.ip))],
+      [t("Vodafone Cash"), M(r2(s.vf))],
+      [t("Hospitality checks"), s.comp],
+      [t("Hospitality") + " · " + t("Value"), M(r2(s.compVal))],
       [t("Extra kept"), M(r2(s.tips))],
       [t("Staff tips"), M(r2(s.stips))]
     ];
@@ -6903,7 +7158,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       t("Refunded"), t("Voided"), t("Expenses"), t("Net income") + " " + cu];
     var drows = [dh.map(H)];
     var T = { n: 0, items: 0, sub: 0, disc: 0, srv: 0, vat: 0, tips: 0, stips: 0, gross: 0,
-              cash: 0, card: 0, refunds: 0, voids: 0, exp: 0, net: 0 };
+              cash: 0, card: 0, ip: 0, vf: 0, comp: 0, compVal: 0, refunds: 0, voids: 0, exp: 0, net: 0 };
     days.forEach(function (k) {
       var sm = sums(S.sales[k] || []);
       var xa = sumExp(dayExpenses(k));
@@ -6912,6 +7167,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       T.srv += sm.srv; T.vat += sm.vat; T.tips += sm.tips; T.gross += sm.gross;
       T.stips += (sm.stips || 0);
       T.cash += sm.cash; T.card += sm.card; T.refunds += sm.refunds; T.voids += sm.voids;
+      T.ip += sm.ip; T.vf += sm.vf; T.comp += sm.comp; T.compVal += sm.compVal;
       T.exp += xa; T.net += net;
       drows.push([k, sm.n, sm.items, M(r2(sm.sub)), M(r2(sm.disc)), M(r2(sm.srv)), M(r2(sm.vat)),
         M(r2(sm.tips)), BM(r2(sm.gross)), M(r2(sm.cash)), M(r2(sm.card)), M(r2(sm.refunds)),
@@ -6952,6 +7208,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       [],
       [t("Cash sales"), M(r2(T.cash))],
       [t("Card sales"), M(r2(T.card))],
+      [t("InstaPay sales"), M(r2(T.ip))],
+      [t("Vodafone Cash sales"), M(r2(T.vf))],
+      [t("Hospitality checks"), T.comp],
+      [t("Hospitality") + " · " + t("Value"), M(r2(T.compVal))],
       [t("Refunded"), M(r2(T.refunds))],
       [t("Voided"), T.voids],
       [],
