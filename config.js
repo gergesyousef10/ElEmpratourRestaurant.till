@@ -11,10 +11,10 @@
    ------------------------------------------------------------------ */
 
 window.EE_FIREBASE = {
-  apiKey:     "",
-  authDomain: "",
-  projectId:  "",
-  appId:      "",
+  apiKey:     "AIzaSyAZlb-1Eezm5h3tfQ3hOVqkuxe9QNkJs8U",
+  authDomain: "empratour-till-f2b2d3.firebaseapp.com",
+  projectId:  "empratour-till-f2b2d3",
+  appId:      "1:328228483346:web:02144ee901ae08160e43cb",
 
   /* The name of this restaurant's data. Leave as is unless you run a
      second branch from the same Firebase project — then give it a
