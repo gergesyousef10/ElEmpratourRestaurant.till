@@ -725,6 +725,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
         <h2 class="sec-title grow" data-t="Setup">Setup</h2>
         <button class="btn" id="backupBtn" type="button" data-t="Backup">Backup</button>
         <button class="btn" id="restoreBtn" type="button" data-t="Restore">Restore</button>
+        <button class="btn danger" id="goLiveBtn" type="button" data-t="Start fresh">Start fresh</button>
       </div>
 
       <div class="panel" style="margin-bottom:18px">
@@ -927,7 +928,12 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     "Staff & access":"الموظفين و الصلاحيات","+ Add employee":"+ موظف جديد",
     "Name":"الاسم","Access":"الصلاحية","PIN":"الرقم السري","Arabic":"بالعربي",
     "Backup":"نسخة احتياطية","Restore":"استرجاع",
-    "Enter your PIN":"أدخل الرقم السري","Clear":"مسح",
+    "Enter your PIN":"أدخل الرقم السري","Start fresh":"بدء التشغيل الفعلي",
+    "Clears every sale, shift, expense, attendance record and trial check, and starts receipt numbers again at 1. The menu, prices, staff, tables, printer and settings stay as they are. A backup file is saved first.":"يمسح كل المبيعات والورديات والمصروفات والحضور وبيانات التجربة، ويرجّع رقم الفاتورة لـ 1. المنيو والأسعار والموظفين والترابيزات والطابعة والإعدادات بتفضل زي ما هي. هيتنزل ملف نسخة احتياطية الأول.",
+    "Set all stock to zero (count it again before opening)":"تصفير كل المخزون (اعمل جرد قبل ما تفتح)",
+    "Type START to confirm":"اكتب START أو ابدأ للتأكيد","shifts":"ورديات","orders":"فاتورة",
+    "Done. The till is ready for the first real shift.":"تم. الكاشير جاهز لأول وردية حقيقية.",
+    "You are still using the starting PIN 1234. Change it in Setup.":"لسه بتستخدم الرقم السري الافتراضي 1234. غيّره من الإعدادات.","Today's price":"سعر اليوم","Type the price, as a number above zero.":"اكتب السعر، رقم أكبر من صفر.","Clear":"مسح",
     "stockHint":"كل فاتورة مدفوعة تخصم المباع — الصنف نفسه لو كان متابعًا، و خامات الوصفة لو كانت له وصفة.",
     "staffHint":"الكاشير يأخذ الطلبات و يفتح و يقفل الوردية. المشرف يعدّل المخزن و يرى المبيعات. المدير يستطيع كل شيء بما فيه هذه الصفحة. اكتب رقمًا سريًا جديدًا من 4 أرقام لتغييره — الأرقام الحالية لا تظهر أبدًا.",
     "Starting":"جارٍ التشغيل","This device":"هذا الجهاز","Synced":"متزامن","Live":"مباشر",
@@ -2504,6 +2510,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     try { localStorage.setItem(LS_KEY + ":session", JSON.stringify({ id: hit.id, at: Date.now() })); } catch (e) {}
     showLock(false); applyRole(); setTab(S.shift ? "order" : "shift");
     toast(t("Welcome,") + " " + hit.name);
+    // the till ships with one manager on 1234. Anyone who has seen the box knows it.
+    if (hit.pin === hashPin("1234")) setTimeout(function () {
+      toast(t("You are still using the starting PIN 1234. Change it in Setup."), true);
+    }, 2900);
     if (DB) pullFromDb();
   }
   $("pad").addEventListener("click", function (e) {
@@ -2649,7 +2659,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       return '<button class="item" type="button" data-add="' + i.id + '"' + (blocked ? " disabled" : "") + ">" +
         '<span class="nm" dir="auto">' + esc(nm(i)) + "</span>" +
         (nm2(i) ? '<span class="ar" dir="auto">' + esc(nm2(i)) + "</span>" : "") +
-        '<span class="foot"><span class="pr">' + money(priceOf(i)) +
+        '<span class="foot"><span class="pr">' + (priceOf(i) > 0 ? money(priceOf(i)) : esc(t("Today's price"))) +
           (takeawayNow(i) ? " <s>" + money(i.price) + "</s>" : "") + "</span>" +
         (st === "free" ? "" : '<span class="pill ' + st + '">' + esc(label) + "</span>") +
         "</span></button>";
@@ -2663,8 +2673,33 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function tapItem(id) {
     var it = byId(id);
     if (!it) return;
+    // "daily price" dishes (octopus, lobster…) are on the menu at 0. They used
+    // to go straight onto the check at 0.00 and be sold for nothing.
+    if (!(priceOf(it) > 0)) {
+      askPrice(it, 0, function (px) {
+        if (it.grp && grpById(it.grp)) optionSheet(it, null, px);
+        else pushLine(it, 1, [], "", px);
+      });
+      return;
+    }
     if (it.grp && grpById(it.grp)) { optionSheet(it, null); return; }
     pushLine(it, 1, [], "");
+  }
+  function askPrice(it, start, done) {
+    modal('<div class="padded stack"><h3>' + esc(nm(it)) + "</h3>" +
+      '<div class="fld"><label for="pxIn">' + esc(t("Today's price")) + " " + esc(cur()) + "</label>" +
+      '<input class="big-in" id="pxIn" type="text" inputmode="decimal" value="' + (start ? esc(String(start)) : "") + '" placeholder="0.00"></div></div>' +
+      '<div class="acts"><button class="btn" id="pxNo" type="button">' + esc(t("Cancel")) + "</button>" +
+      '<button class="btn primary" id="pxYes" type="button">' + esc(t("Add")) + "</button></div>");
+    $("pxNo").addEventListener("click", closeModal);
+    function go() {
+      var v = r2(num($("pxIn").value, 1e6));
+      if (!(v > 0)) { toast(t("Type the price, as a number above zero."), true); $("pxIn").focus(); return; }
+      closeModal(); done(v);
+    }
+    $("pxYes").addEventListener("click", go);
+    $("pxIn").addEventListener("keydown", function (e) { if (e.key === "Enter") go(); });
+    setTimeout(function () { var el = $("pxIn"); if (el) { el.focus(); el.select(); } }, 50);
   }
   /* A ticket line can only ever mean "one or more of this". Anything else is
      corruption — a half-written record, a bad merge, a value that came back
@@ -2684,22 +2719,23 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     });
   }
 
-  function pushLine(it, qty, opts, note) {
+  function pushLine(it, qty, opts, note, px) {
+    px = Number(px) > 0 ? r2(Number(px)) : 0;
     if (it.track && inCart(it.id) + qty > it.stock) {
       toast(t("Only") + " " + it.stock + " — " + nm(it), true); return;
     }
-    var key = JSON.stringify(opts.map(function (o) { return o.name; })) + "|" + note;
+    var key = JSON.stringify(opts.map(function (o) { return o.name; })) + "|" + note + "|" + px;
     var same = S.cart.filter(function (l) {
-      return l.id === it.id && JSON.stringify(l.opts.map(function (o) { return o.name; })) + "|" + l.note === key;
+      return l.id === it.id && JSON.stringify(l.opts.map(function (o) { return o.name; })) + "|" + l.note + "|" + (Number(l.px) || 0) === key;
     })[0];
     qty = Math.max(1, Math.floor(Number(qty) || 1));
     if (same) same.qty = Math.max(1, Math.floor(Number(same.qty) || 0) + qty);
-    else S.cart.push({ uid: uid(), id: it.id, qty: qty, opts: opts, note: note });
+    else S.cart.push({ uid: uid(), id: it.id, qty: qty, opts: opts, note: note, px: px });
     S.cart = cleanCart(S.cart);
     renderTicket(); renderItems();
   }
 
-  function optionSheet(it, line) {
+  function optionSheet(it, line, px) {
     var g = grpById(it.grp);
     var chosen = line ? line.opts.slice() : [];
     var qty = line ? line.qty : 1;
@@ -2749,7 +2785,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
           S.cart = cleanCart(S.cart);
           closeModal(); renderTicket(); renderItems();
         }
-        else { closeModal(); pushLine(it, q, chosen, n); }
+        else { closeModal(); pushLine(it, q, chosen, n, px); }
       });
     }
     draw();
@@ -2765,7 +2801,9 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
   function lineUnit(l) {
     var it = byId(l.id);
     if (!it) return 0;
-    return priceOf(it) + l.opts.reduce(function (a, o) { return a + (o.price || 0); }, 0);
+    // a dish sold at the day's price carries the price typed for it on the line
+    var base = (Number(l.px) > 0) ? Number(l.px) : priceOf(it);
+    return base + l.opts.reduce(function (a, o) { return a + (o.price || 0); }, 0);
   }
   function lineName(l) {
     var it = byId(l.id);
@@ -2859,6 +2897,10 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     if (!row) return;
     var l = S.cart.filter(function (x) { return x.uid === row.dataset.line; })[0];
     var it = l && byId(l.id);
+    if (it && Number(l.px) > 0 && !(priceOf(it) > 0)) {
+      askPrice(it, l.px, function (v) { l.px = v; renderTicket(); renderItems(); });
+      return;
+    }
     if (it && it.grp && grpById(it.grp)) optionSheet(it, l);
   });
   function bump(u, d) {
@@ -2934,7 +2976,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
       customer: S.customer, disc: S.disc,
       // a copy, so later edits to the live ticket cannot rewrite the held check
       cart: S.cart.map(function (l) {
-        return { uid: l.uid, id: l.id, qty: l.qty, opts: (l.opts || []).slice(), note: l.note || "" };
+        return { uid: l.uid, id: l.id, qty: l.qty, opts: (l.opts || []).slice(), note: l.note || "", px: Number(l.px) > 0 ? Number(l.px) : 0 };
       }),
       svcOn: S.svcOn, vatOn: S.vatOn,
       by: S.me ? S.me.name : "", at: new Date().toISOString(),
@@ -3245,7 +3287,7 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     // further below zero.
     p.cart = cleanCart(p.cart);
     S.cart = p.cart.map(function (l) {
-      return { uid: l.uid, id: l.id, qty: l.qty, opts: (l.opts || []).slice(), note: l.note || "" };
+      return { uid: l.uid, id: l.id, qty: l.qty, opts: (l.opts || []).slice(), note: l.note || "", px: Number(l.px) > 0 ? Number(l.px) : 0 };
     });
     S.table = p.table; S.type = p.type; S.note = p.note || "";
     S.customer = p.customer || null; S.disc = p.disc || null; S.editing = p.id;
@@ -6256,6 +6298,54 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
     offerFile("Empratour-backup-" + dayKey() + ".json", JSON.stringify(snapshot(), null, 2));
   });
   $("restoreBtn").addEventListener("click", function () { if (!needsMgr()) return; $("restoreFile").click(); });
+
+  /* Going live. The till ships with trial numbers in it — stock in the store,
+     sample ingredients with prices, and whatever sales were rung while people
+     were learning it. Opening the first real night on top of that puts fake
+     money in the first shift and fake bottles in the stocktake. This clears
+     the trading history and the counts, and keeps the menu, prices, staff,
+     tables, printer and settings exactly as they are. */
+  $("goLiveBtn").addEventListener("click", function () {
+    if (!needsMgr()) return;
+    var nOrders = Object.keys(S.sales).reduce(function (a, k) { return a + (S.sales[k] || []).length; }, 0);
+    modal('<div class="padded stack"><h3>' + esc(t("Start fresh")) + "</h3>" +
+      '<p style="margin:0;line-height:1.6">' + esc(t("Clears every sale, shift, expense, attendance record and trial check, and starts receipt numbers again at 1. The menu, prices, staff, tables, printer and settings stay as they are. A backup file is saved first.")) + "</p>" +
+      '<p style="margin:0;color:var(--bad);line-height:1.6">' + esc(t("You will lose")) + ": " +
+        nOrders + " " + esc(t("orders")) + " · " + S.shifts.length + " " + esc(t("shifts")) +
+        (S.shift ? " · " + esc(t("the open shift")) : "") + "</p>" +
+      '<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="glStock" checked> ' +
+        esc(t("Set all stock to zero (count it again before opening)")) + "</label>" +
+      '<div class="fld"><label for="glWord">' + esc(t("Type START to confirm")) + '</label><input id="glWord" autocomplete="off"></div></div>' +
+      '<div class="acts"><button class="btn" id="glNo" type="button">' + esc(t("Cancel")) + "</button>" +
+      '<button class="btn primary danger" id="glYes" type="button" disabled>' + esc(t("Start fresh")) + "</button></div>");
+    function ok() { var w = $("glWord").value.trim().toUpperCase(); return w === "START" || w === "ابدأ"; }
+    $("glWord").addEventListener("input", function () { $("glYes").disabled = !ok(); });
+    $("glNo").addEventListener("click", closeModal);
+    $("glYes").addEventListener("click", function () {
+      if (!ok()) return;
+      var zero = $("glStock").checked;
+      // a copy of everything first, so nothing here is ever unrecoverable
+      offerFile("Empratour-before-start-" + dayKey() + ".json", JSON.stringify(snapshot(), null, 2));
+      var oldDays = Object.keys(S.sales);
+      S.sales = {}; S.shifts = []; S.shift = null; S.expenses = []; S.clock = [];
+      S.parked = []; S.counts = []; S.cleared = []; S.adjust = [];
+      S.counter = 1; S.settings.shiftNo = 0; S.settings.xlsDone = {};
+      if (zero) {
+        S.menu.forEach(function (i) { if (i.track) { i.stock = 0; i.main = 0; } });
+        S.ings.forEach(function (g) { g.stock = 0; });
+      }
+      OUT = []; saveOut();
+      try { localStorage.removeItem(LS_KEY + ":draft"); } catch (e) {}
+      freshTicket();
+      saveLocal();
+      if (DB) {
+        pushAll();
+        oldDays.forEach(function (k) { try { DB.doc("sales/" + k).set({ orders: [] }).catch(function () {}); } catch (e) {} });
+      }
+      closeModal(); renderAll(); applyRole();
+      toast(t("Done. The till is ready for the first real shift."));
+    });
+  });
   $("restoreFile").addEventListener("change", function (e) {
     var f = e.target.files && e.target.files[0];
     if (!f) return;
