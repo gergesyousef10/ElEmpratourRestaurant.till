@@ -892,7 +892,9 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     "The full report will go to the owner's email as soon as there is internet.":"التقرير الكامل هيتبعت على إيميل صاحب المطعم أول ما النت يرجع.",
     "Automatic email to the owner":"إيميل تلقائي لصاحب المطعم",
     "Every time a shift closes, the full shift report and the day's Excel are emailed to you by themselves, and a copy of every file is kept in your Google Drive, in a folder called Empratour with one folder per month. The tablet then shows no totals to anyone without a manager PIN, and saves no Excel files of its own.":"كل ما وردية تتقفل، تقرير الوردية الكامل و ملف إكسل اليوم بيتبعتولك على الإيميل لوحدهم، و نسخة من كل ملف بتتحفظ في Google Drive بتاعك، في فولدر اسمه Empratour جواه فولدر لكل شهر. التابلت ساعتها مش بيعرض أي أرقام لحد من غير PIN المدير، و مش بيحفظ ملفات إكسل عنده.",
-    "When Google asks, allow it to send email as you and to see and add files in your Drive. It only ever writes inside the Empratour folder.":"لما جوجل يسألك، وافق إنه يبعت إيميل باسمك و يشوف و يضيف ملفات في Drive بتاعك. هو مش بيكتب غير جوه فولدر Empratour.",
+    "When Google asks, allow it to send email as you and to use your Drive. Google words this as access to all your Drive files; the script above only creates the Empratour folder and the files in it — you can read every line of it.":"لما جوجل يسألك، وافق إنه يبعت إيميل باسمك و يستخدم Drive بتاعك. جوجل بيكتبها على إنها صلاحية على كل ملفات Drive؛ السكريبت اللي فوق مش بيعمل غير فولدر Empratour و الملفات اللي جواه — و تقدر تقرا كل سطر فيه.",
+    "The email works, but the copy in Drive did not.":"الإيميل شغال، بس النسخة في Drive ماتحفظتش.",
+    "The email works, but this is the older script with no Drive copy. Copy the script again and deploy a new version.":"الإيميل شغال، بس ده السكريبت القديم اللي مش بيحفظ في Drive. انسخ السكريبت تاني و انشر نسخة جديدة.",
     "Write your email above first.":"اكتب إيميلك فوق الأول.",
     "1. Copy this script":"1. انسخ السكريبت ده","Copy the script":"انسخ السكريبت","Copied":"اتنسخ",
     "Open script.google.com, start a new project, delete what is there and paste this. Then Deploy → New deployment → type Web app → Execute as: Me → Who has access: Anyone → Deploy, and allow it.":"افتح script.google.com، اعمل مشروع جديد، امسح اللي فيه و الصق ده. بعدين Deploy ← New deployment ← النوع Web app ← Execute as: Me ← Who has access: Anyone ← Deploy، و وافق على الصلاحيات.",
@@ -6038,7 +6040,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
       (hasTo
         ? '<p class="eyebrow" style="margin:0">' + esc(t("1. Copy this script")) + "</p>" +
           '<p class="hint" style="margin:0">' + esc(t("Open script.google.com, start a new project, delete what is there and paste this. Then Deploy → New deployment → type Web app → Execute as: Me → Who has access: Anyone → Deploy, and allow it.")) + "</p>" +
-          '<p class="hint" style="margin:0">' + esc(t("When Google asks, allow it to send email as you and to see and add files in your Drive. It only ever writes inside the Empratour folder.")) + "</p>" +
+          '<p class="hint" style="margin:0">' + esc(t("When Google asks, allow it to send email as you and to use your Drive. Google words this as access to all your Drive files; the script above only creates the Empratour folder and the files in it — you can read every line of it.")) + "</p>" +
           '<textarea id="mailScript" readonly rows="6" style="width:100%;font-family:var(--mono);font-size:11px" dir="ltr">' + esc(mailScript()) + "</textarea>" +
           '<div class="t-tools" style="max-width:420px"><button type="button" id="mailCopy">' + esc(t("Copy the script")) + "</button></div>" +
           '<div class="fld" style="max-width:520px"><label for="mailHook">' + esc(t("2. Paste the Web app URL here")) + "</label>" +
@@ -6047,6 +6049,8 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         : '<p class="hint" style="margin:0;color:var(--warn)">' + esc(t("Write your email above first.")) + "</p>") +
       (hook ? '<dl class="kv"><dt>' + esc(t("Waiting to send")) + "</dt><dd>" + mailQ().length + "</dd>" +
           "<dt>" + esc(t("Last email")) + "</dt><dd>" + esc(mailLast() ? whenStr(new Date(mailLast()).toISOString()) : t("Never")) + "</dd>" +
+          (mailVer() != null && mailVer() < MAIL_SCRIPT_VER ? "<dt>Drive</dt><dd style=\"color:var(--warn)\">" +
+            esc(t("The email works, but this is the older script with no Drive copy. Copy the script again and deploy a new version.")) + "</dd>" : "") +
           (mailErr() ? "<dt>" + esc(t("Last problem")) + '</dt><dd style="color:var(--bad)">' +
             esc(whenStr(new Date(mailErr().at).toISOString())) + " · " +
             esc(mailErr().msg === "denied" ? t("The script refused it. Copy the script again and deploy a new version.") : mailErr().msg) + "</dd>" : "") +
@@ -6121,7 +6125,12 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     if ($("mailTest")) $("mailTest").addEventListener("click", function () {
       var b = $("mailTest"); b.disabled = true;
       mailPayload({ kind: "test", id: "test-" + uid() + uid() }).then(postMail)
-        .then(function () { setMailErr(null); toast(t("Test sent — check your inbox.")); },
+        .then(function (res) {
+          mailOutcome(res);
+          if (res.drive) toast(t("The email works, but the copy in Drive did not.") + " " + res.drive, true);
+          else if (res.ver < MAIL_SCRIPT_VER) toast(t("The email works, but this is the older script with no Drive copy. Copy the script again and deploy a new version."), true);
+          else toast(t("Test sent — check your inbox.") + " · Drive ✓");
+        },
           function (err) {
             setMailErr(err && err.message || err);
             toast(err && err.denied ? t("The script refused it. Copy the script again and deploy a new version.")
@@ -7634,51 +7643,82 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
   /* The script answers "ok" only once the email is really sent, and it
      remembers each job id for six hours, so a job sent again because its
      answer was lost on the way back is not emailed twice. */
+  /* The script, as the owner pastes it into script.google.com.
+     - "ok" comes back only once the email has really gone; anything else and
+       the till keeps the job and tries again later
+     - a job id is remembered for six hours, so a resend after a lost reply is
+       not emailed twice
+     - the email goes FIRST and the Drive copy after it, so a failing email
+       never touches Drive, and a failing Drive never holds up the email
+     - the new Drive copy is written before the older one is put in the bin,
+       so a full Drive can never leave a day with no copy at all
+     - folders and files in the bin are never reused
+     - one report at a time (LockService), so two tablets sending together
+       cannot make two folders of the same name
+     - the answer carries the script's version and any Drive problem, so the
+       till can say so in Setup */
+  var MAIL_SCRIPT_VER = 2;
   function mailScript() {
     return [
-      "// El Empratour Cashier - sends the till's reports to the owner.",
+      "// El Empratour Cashier - sends the till's reports to the owner",
+      "// and keeps a copy of every file in Drive, in the Empratour folder.",
       "// Deploy > New deployment > Web app. Execute as: Me. Who has access: Anyone.",
       "var TO = " + JSON.stringify((S.settings.mailTo || "").trim()) + ";",
       "var KEY = " + JSON.stringify(mailKey()) + ";",
-      "",
       "var ROOT = \"Empratour\";",
+      "var VERSION = " + MAIL_SCRIPT_VER + ";",
       "",
       "function doPost(e) {",
       "  var d = JSON.parse(e.postData.contents);",
-      "  if (d.key !== KEY) return ContentService.createTextOutput(\"denied\");",
-      "  var seen = CacheService.getScriptCache();",
-      "  if (d.id && seen.get(d.id)) return ContentService.createTextOutput(\"ok\");",
-      "  var files = (d.files || []).map(function (f) {",
-      "    return Utilities.newBlob(Utilities.base64Decode(f.b64), f.type, f.name);",
-      "  });",
-      "  var body = d.text || \"\";",
-      "  // a copy of every file in Drive: Empratour/<month>/, the newest copy of a day replacing the older one",
+      "  if (d.key !== KEY) return out(\"denied\");",
+      "  var lock = LockService.getScriptLock();",
+      "  lock.waitLock(30000);",
       "  try {",
-      "    var dir = folder(folder(DriveApp.getRootFolder(), ROOT), d.folder || \"\");",
-      "    files.forEach(function (b) {",
-      "      var old = dir.getFilesByName(b.getName());",
-      "      while (old.hasNext()) old.next().setTrashed(true);",
-      "      dir.createFile(b.copyBlob().setName(b.getName()));",
+      "    var seen = CacheService.getScriptCache();",
+      "    if (d.id && seen.get(d.id)) return out(\"ok v\" + VERSION);",
+      "    var files = (d.files || []).map(function (f) {",
+      "      return { blob: Utilities.newBlob(Utilities.base64Decode(f.b64), f.type, f.name),",
+      "               folder: f.folder || d.folder || \"\" };",
       "    });",
-      "  } catch (err) {",
-      "    body += \"\\n\\nDrive: \" + err;",
+      "    MailApp.sendEmail({ to: TO, subject: d.subject, body: d.text || \"\",",
+      "      attachments: files.map(function (f) { return f.blob; }) });",
+      "    if (d.id) seen.put(d.id, \"1\", 21600);",
+      "    var problem = \"\";",
+      "    try {",
+      "      var root = folder(DriveApp.getRootFolder(), ROOT);",
+      "      files.forEach(function (f) {",
+      "        var dir = folder(root, f.folder);",
+      "        var name = f.blob.getName();",
+      "        var made = dir.createFile(f.blob.copyBlob().setName(name));",
+      "        var old = dir.getFilesByName(name);",
+      "        while (old.hasNext()) {",
+      "          var o = old.next();",
+      "          if (o.getId() !== made.getId() && !o.isTrashed()) o.setTrashed(true);",
+      "        }",
+      "      });",
+      "    } catch (err) {",
+      "      problem = \" drive: \" + err;",
+      "    }",
+      "    return out(\"ok v\" + VERSION + problem);",
+      "  } finally {",
+      "    lock.releaseLock();",
       "  }",
-      "  MailApp.sendEmail({ to: TO, subject: d.subject, body: body, attachments: files });",
-      "  if (d.id) seen.put(d.id, \"1\", 21600);",
-      "  return ContentService.createTextOutput(\"ok\");",
       "}",
+      "",
+      "function out(x) { return ContentService.createTextOutput(x); }",
       "",
       "function folder(parent, name) {",
       "  if (!name) return parent;",
       "  var it = parent.getFoldersByName(name);",
-      "  return it.hasNext() ? it.next() : parent.createFolder(name);",
+      "  while (it.hasNext()) { var f = it.next(); if (!f.isTrashed()) return f; }",
+      "  return parent.createFolder(name);",
       "}",
       ""
     ].join("\n");
   }
   function queueMail(job) {
     if (!S.settings.mailHook) return;
-    job.id = uid() + uid() + uid(); job.at = Date.now(); job.tries = 0; job.next = 0;
+    job.id = job.fixedId || (uid() + uid() + uid()); job.at = Date.now(); job.tries = 0; job.next = 0;
     var q = mailQ(); q.push(job); setMailQ(q);
     setTimeout(pumpMail, 1500);
   }
@@ -7709,21 +7749,27 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         p.subject = "El Empratour · " + t("Shift report") + " " + rec.no + " · " + k;
         p.folder = k.slice(0, 7);
         p.text = shiftText(rec) + "\n\n" + daySummaryText(k);
-        att.push({ name: xlsName(k), type: XLS_TYPE, blob: new Blob([dayWorkbook(k)], { type: XLS_TYPE }) });
-        // the file that puts the till back if the tablet is wiped
-        att.push({ name: bakName(k), type: "application/json",
+        att.push({ name: xlsName(k), type: XLS_TYPE, folder: k.slice(0, 7),
+          blob: new Blob([dayWorkbook(k)], { type: XLS_TYPE }) });
+        // the file that puts the till back if the tablet is wiped. It holds the
+        // till as it is NOW, so it carries today's date: a report sent late
+        // must not overwrite an older day's real backup with a newer state
+        var now = dayKey();
+        att.push({ name: bakName(now), type: "application/json", folder: now.slice(0, 7),
           blob: new Blob([JSON.stringify(snapshot())], { type: "application/json" }) });
       } else if (job.kind === "month") {
         p.subject = "El Empratour · " + t("Month report") + " " + job.mk;
-        p.folder = String(job.mk || "").slice(0, 7);
+        p.folder = job.mk;
         p.text = monthSummaryText(job.mk);
-        att.push({ name: monthXlsName(job.mk), type: XLS_TYPE, blob: new Blob([monthWorkbook(job.mk)], { type: XLS_TYPE }) });
+        att.push({ name: monthXlsName(job.mk), type: XLS_TYPE, folder: job.mk,
+          blob: new Blob([monthWorkbook(job.mk)], { type: XLS_TYPE }) });
       } else {
         p.subject = "El Empratour · " + t("Test email from the till");
+        p.test = true;
         p.text = t("Test email from the till") + " · " + whenStr(new Date().toISOString());
       }
       return Promise.all(att.map(function (f) { return blobB64(f.blob); })).then(function (bs) {
-        p.files = att.map(function (f, i) { return { name: f.name, type: f.type, b64: bs[i] }; });
+        p.files = att.map(function (f, i) { return { name: f.name, type: f.type, folder: f.folder, b64: bs[i] }; });
         return p;
       });
     }).catch(function (err) {
@@ -7734,16 +7780,28 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
   }
   // only an "ok" from the script counts. Anything else — "denied", a Google
   // error page, no answer — leaves the job waiting to be tried again.
+  var MAILVER_KEY = LS_KEY + ":mailver";
+  function mailVer() { try { var v = localStorage.getItem(MAILVER_KEY); return v == null ? null : Number(v); } catch (e) { return null; } }
   function postMail(p) {
     return fetch(S.settings.mailHook, { method: "POST", redirect: "follow", body: JSON.stringify(p) })
       .then(function (r) { return r.text(); })
       .then(function (x) {
         x = String(x || "").trim();
-        if (x === "ok") return x;
+        var m = /^ok(?: v(\d+))?(?: drive: ([\s\S]*))?$/.exec(x);
+        if (m) {
+          // a script from before the Drive copy answers a bare "ok"
+          var res = { ver: m[1] ? Number(m[1]) : 1, drive: m[2] ? m[2].slice(0, 140) : "" };
+          try { localStorage.setItem(MAILVER_KEY, String(res.ver)); } catch (e) {}
+          return res;
+        }
         var e = new Error(x === "denied" ? "denied" : (x.slice(0, 120) || "no answer"));
         e.denied = x === "denied";
         throw e;
       });
+  }
+  // the email went; say so, and say if the Drive copy did not
+  function mailOutcome(res) {
+    setMailErr(res && res.drive ? "Drive: " + res.drive : null);
   }
   var mailBusy = false;
   function pumpMail(force) {
@@ -7752,13 +7810,13 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     var job = mailQ().filter(function (j) { return force === true || !(Number(j.next) > now); })[0];
     if (!job) return;
     mailBusy = true;
-    mailPayload(job).then(function (p) { return p ? postMail(p) : "skip"; }).then(function () {
+    mailPayload(job).then(function (p) { return p ? postMail(p) : null; }).then(function (res) {
       mailBusy = false;
       // the link works again, so nothing else needs to sit out its wait
       setMailQ(mailQ().filter(function (j) { return j.id !== job.id; })
         .map(function (j) { j.next = 0; return j; }));
       try { localStorage.setItem(MAILLAST_KEY, String(Date.now())); } catch (e) {}
-      setMailErr(null);
+      if (res) mailOutcome(res);
       if (job.kind === "month") markMonthSent(job.mk);
       if (S.tab === "setup") renderXls();
       setTimeout(pumpMail, 1000);
@@ -7782,7 +7840,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     if (!monthDays(mk).length) return;
     if ((S.settings.sentMonths || {})[mk]) return;
     if (mailQ().some(function (j) { return j.kind === "month" && j.mk === mk; })) return;
-    queueMail({ kind: "month", mk: mk });
+    queueMail({ kind: "month", mk: mk, fixedId: "month-" + mk + "-" + mailKey().slice(0, 8) });
   }
   window.addEventListener("online", function () { setTimeout(function () { pumpMail(true); }, 3000); });
   setInterval(pumpMail, 60 * 1000);
