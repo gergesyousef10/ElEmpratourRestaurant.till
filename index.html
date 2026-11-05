@@ -898,7 +898,10 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     "The email works, but this is the older script with no Drive copy. Copy the script again and deploy a new version.":"الإيميل شغال، بس ده السكريبت القديم اللي مش بيحفظ في Drive. انسخ السكريبت تاني و انشر نسخة جديدة.",
     "Write your email above first.":"اكتب إيميلك فوق الأول.",
     "1. Copy this script":"1. انسخ السكريبت ده","Copy the script":"انسخ السكريبت","Copied":"اتنسخ",
-    "Open script.google.com, start a new project, delete what is there and paste this. Then Deploy → New deployment → type Web app → Execute as: Me → Who has access: Anyone → Deploy, and allow it.":"افتح script.google.com، اعمل مشروع جديد، امسح اللي فيه و الصق ده. بعدين Deploy ← New deployment ← النوع Web app ← Execute as: Me ← Who has access: Anyone ← Deploy، و وافق على الصلاحيات.",
+    "Open script.google.com and start a new project. Select everything already in the file (⌘A / Ctrl+A) and delete it — including function myFunction — then paste this. Save, choose setup next to Run, press Run once and allow it: you get a test email and an Empratour folder in Drive. Then Deploy → New deployment → type Web app → Execute as: Me → Who has access: Anyone → Deploy.":"افتح script.google.com و اعمل مشروع جديد. علّم على كل اللي في الملف (⌘A / Ctrl+A) و امسحه — و معاه function myFunction — و بعدين الصق ده. احفظ، اختار setup جنب Run، دوس Run مرة و وافق على الصلاحيات: هيوصلك إيميل تجربة و فولدر Empratour في Drive. بعدين Deploy ← New deployment ← النوع Web app ← Execute as: Me ← Who has access: Anyone ← Deploy.",
+    "Google answered in a way the till cannot read. The script probably stopped with an error: open it on script.google.com → Executions to see why.":"جوجل رد بطريقة الكاشير مش قادر يقراها. غالبًا السكريبت وقف بغلط: افتحه في script.google.com ← Executions و شوف السبب.",
+    "New secret key":"كود سري جديد",
+    "Make a new secret key? The deployed script stops working until you copy the script again and deploy a new version.":"تعمل كود سري جديد؟ السكريبت المنشور هيبطل يشتغل لحد ما تنسخ السكريبت تاني و تنشر نسخة جديدة.",
     "2. Paste the Web app URL here":"2. الصق لينك الـ Web app هنا",
     "Send a test":"ابعت تجربة","Test sent — check your inbox.":"التجربة اتبعتت — شوف الإيميل.",
     "Could not send. Check the link and that the script is deployed for Anyone.":"مقدرتش أبعت. اتأكد من اللينك و إن السكريبت متنشر لـ Anyone.",
@@ -6066,7 +6069,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
       '<p class="hint" style="margin:0">' + esc(t("Every time a shift closes, the full shift report and the day's Excel are emailed to you by themselves, and a copy of every file is kept in your Google Drive, in a folder called Empratour with one folder per month. The tablet then shows no totals to anyone without a manager PIN, and saves no Excel files of its own.")) + "</p>" +
       (hasTo
         ? '<p class="eyebrow" style="margin:0">' + esc(t("1. Copy this script")) + "</p>" +
-          '<p class="hint" style="margin:0">' + esc(t("Open script.google.com, start a new project, delete what is there and paste this. Then Deploy → New deployment → type Web app → Execute as: Me → Who has access: Anyone → Deploy, and allow it.")) + "</p>" +
+          '<p class="hint" style="margin:0">' + esc(t("Open script.google.com and start a new project. Select everything already in the file (⌘A / Ctrl+A) and delete it — including function myFunction — then paste this. Save, choose setup next to Run, press Run once and allow it: you get a test email and an Empratour folder in Drive. Then Deploy → New deployment → type Web app → Execute as: Me → Who has access: Anyone → Deploy.")) + "</p>" +
           '<p class="hint" style="margin:0">' + esc(t("When Google asks, allow it to send email as you and to use your Drive. Google words this as access to all your Drive files; the script above only creates the Empratour folder and the files in it — you can read every line of it.")) + "</p>" +
           '<textarea id="mailScript" readonly rows="6" style="width:100%;font-family:var(--mono);font-size:11px" dir="ltr">' + esc(mailScript()) + "</textarea>" +
           '<div class="t-tools" style="max-width:420px"><button type="button" id="mailCopy">' + esc(t("Copy the script")) + "</button></div>" +
@@ -6085,7 +6088,8 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
           '<div class="t-tools" style="max-width:420px">' +
             (hasTo ? '<button type="button" id="mailTest">' + esc(t("Send a test")) + "</button>" : "") +
             (mailQ().length ? '<button type="button" id="mailPush">' + esc(t("Send now")) + "</button>" : "") +
-            '<button type="button" id="mailOff">' + esc(t("Turn off")) + "</button></div>" : "") +
+            '<button type="button" id="mailOff">' + esc(t("Turn off")) + "</button>" +
+            (hasTo ? '<button type="button" id="mailRekey">' + esc(t("New secret key")) + "</button>" : "") + "</div>" : "") +
       '<hr style="border:0;border-top:1px solid var(--line);margin:6px 0">';
     $("xlsPanel").innerHTML = '<div class="stack">' +
       '<p class="hint" style="margin:0">' + esc(t("A full workbook for each day: summary, every order, items sold, expenses, shifts and stock.")) + "</p>" +
@@ -6163,11 +6167,17 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
           function (err) {
             setMailErr(err && err.message || err);
             toast(err && err.denied ? t("The script refused it. Copy the script again and deploy a new version.")
-              : t("Could not confirm the test. If no email arrives, check the link and that the script is deployed for Anyone."), true);
+              : (err && err.message && err.message !== "offline" && err.message.length > 40 ? err.message
+                : t("Could not confirm the test. If no email arrives, check the link and that the script is deployed for Anyone.")), true);
           })
         .then(function () { setTimeout(renderXls, 0); });
     });
     if ($("mailPush")) $("mailPush").addEventListener("click", function () { pumpMail(true); toast(t("Send now")); });
+    if ($("mailRekey")) $("mailRekey").addEventListener("click", function () {
+      if (!needsMgr()) return;
+      if (!window.confirm(t("Make a new secret key? The deployed script stops working until you copy the script again and deploy a new version."))) return;
+      S.settings.mailKey = ""; mailKey(); setTimeout(renderXls, 0); toast(t("Saved"));
+    });
     if ($("xlsPick")) $("xlsPick").addEventListener("click", function () {
       window.showDirectoryPicker({ mode: "readwrite" }).then(function (h) {
         xlsDir = h; return saveDirHandle(h);
@@ -7744,6 +7754,14 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
       "  while (it.hasNext()) { var f = it.next(); if (!f.isTrashed()) return f; }",
       "  return parent.createFolder(name);",
       "}",
+      "",
+      "// Run this ONCE from the editor (choose setup next to Run): it asks for the",
+      "// permissions, sends a test email and makes the Empratour folder in Drive.",
+      "function setup() {",
+      "  MailApp.sendEmail(TO, \"Empratour setup test\", \"If you can read this, email works.\");",
+      "  var root = folder(DriveApp.getRootFolder(), ROOT);",
+      "  Logger.log(\"Email OK, Drive OK: \" + root.getName());",
+      "}",
       ""
     ].join("\n");
   }
@@ -7815,6 +7833,13 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
   function mailVer() { try { var v = localStorage.getItem(MAILVER_KEY); return v == null ? null : Number(v); } catch (e) { return null; } }
   function postMail(p) {
     return fetch(S.settings.mailHook, { method: "POST", redirect: "follow", body: JSON.stringify(p) })
+      .catch(function () {
+        // the browser could not read Google's answer: almost always the
+        // script stopping with an error, whose page carries no CORS header
+        throw new Error(navigator.onLine
+          ? t("Google answered in a way the till cannot read. The script probably stopped with an error: open it on script.google.com → Executions to see why.")
+          : "offline");
+      })
       .then(function (r) { return r.text(); })
       .then(function (x) {
         x = String(x || "").trim();
