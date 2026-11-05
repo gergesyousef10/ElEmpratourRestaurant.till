@@ -891,7 +891,8 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     "Shift closed":"الوردية اتقفلت","The full report has gone to the owner's email.":"التقرير الكامل اتبعت على إيميل صاحب المطعم.",
     "The full report will go to the owner's email as soon as there is internet.":"التقرير الكامل هيتبعت على إيميل صاحب المطعم أول ما النت يرجع.",
     "Automatic email to the owner":"إيميل تلقائي لصاحب المطعم",
-    "Every time a shift closes, the full shift report and the day's Excel are emailed to you by themselves. The tablet then shows no totals to anyone without a manager PIN, and saves no Excel files of its own.":"كل ما وردية تتقفل، تقرير الوردية الكامل و ملف إكسل اليوم بيتبعتولك على الإيميل لوحدهم. التابلت ساعتها مش بيعرض أي أرقام لحد من غير PIN المدير، و مش بيحفظ ملفات إكسل عنده.",
+    "Every time a shift closes, the full shift report and the day's Excel are emailed to you by themselves, and a copy of every file is kept in your Google Drive, in a folder called Empratour with one folder per month. The tablet then shows no totals to anyone without a manager PIN, and saves no Excel files of its own.":"كل ما وردية تتقفل، تقرير الوردية الكامل و ملف إكسل اليوم بيتبعتولك على الإيميل لوحدهم، و نسخة من كل ملف بتتحفظ في Google Drive بتاعك، في فولدر اسمه Empratour جواه فولدر لكل شهر. التابلت ساعتها مش بيعرض أي أرقام لحد من غير PIN المدير، و مش بيحفظ ملفات إكسل عنده.",
+    "When Google asks, allow it to send email as you and to see and add files in your Drive. It only ever writes inside the Empratour folder.":"لما جوجل يسألك، وافق إنه يبعت إيميل باسمك و يشوف و يضيف ملفات في Drive بتاعك. هو مش بيكتب غير جوه فولدر Empratour.",
     "Write your email above first.":"اكتب إيميلك فوق الأول.",
     "1. Copy this script":"1. انسخ السكريبت ده","Copy the script":"انسخ السكريبت","Copied":"اتنسخ",
     "Open script.google.com, start a new project, delete what is there and paste this. Then Deploy → New deployment → type Web app → Execute as: Me → Who has access: Anyone → Deploy, and allow it.":"افتح script.google.com، اعمل مشروع جديد، امسح اللي فيه و الصق ده. بعدين Deploy ← New deployment ← النوع Web app ← Execute as: Me ← Who has access: Anyone ← Deploy، و وافق على الصلاحيات.",
@@ -6033,10 +6034,11 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     var canDir = !!window.showDirectoryPicker;
     var hook = S.settings.mailHook || "", hasTo = !!(S.settings.mailTo || "").trim();
     var mailBox = '<p class="eyebrow" style="margin:0">' + esc(t("Automatic email to the owner")) + "</p>" +
-      '<p class="hint" style="margin:0">' + esc(t("Every time a shift closes, the full shift report and the day's Excel are emailed to you by themselves. The tablet then shows no totals to anyone without a manager PIN, and saves no Excel files of its own.")) + "</p>" +
+      '<p class="hint" style="margin:0">' + esc(t("Every time a shift closes, the full shift report and the day's Excel are emailed to you by themselves, and a copy of every file is kept in your Google Drive, in a folder called Empratour with one folder per month. The tablet then shows no totals to anyone without a manager PIN, and saves no Excel files of its own.")) + "</p>" +
       (hasTo
         ? '<p class="eyebrow" style="margin:0">' + esc(t("1. Copy this script")) + "</p>" +
           '<p class="hint" style="margin:0">' + esc(t("Open script.google.com, start a new project, delete what is there and paste this. Then Deploy → New deployment → type Web app → Execute as: Me → Who has access: Anyone → Deploy, and allow it.")) + "</p>" +
+          '<p class="hint" style="margin:0">' + esc(t("When Google asks, allow it to send email as you and to see and add files in your Drive. It only ever writes inside the Empratour folder.")) + "</p>" +
           '<textarea id="mailScript" readonly rows="6" style="width:100%;font-family:var(--mono);font-size:11px" dir="ltr">' + esc(mailScript()) + "</textarea>" +
           '<div class="t-tools" style="max-width:420px"><button type="button" id="mailCopy">' + esc(t("Copy the script")) + "</button></div>" +
           '<div class="fld" style="max-width:520px"><label for="mailHook">' + esc(t("2. Paste the Web app URL here")) + "</label>" +
@@ -7639,6 +7641,8 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
       "var TO = " + JSON.stringify((S.settings.mailTo || "").trim()) + ";",
       "var KEY = " + JSON.stringify(mailKey()) + ";",
       "",
+      "var ROOT = \"Empratour\";",
+      "",
       "function doPost(e) {",
       "  var d = JSON.parse(e.postData.contents);",
       "  if (d.key !== KEY) return ContentService.createTextOutput(\"denied\");",
@@ -7647,9 +7651,27 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
       "  var files = (d.files || []).map(function (f) {",
       "    return Utilities.newBlob(Utilities.base64Decode(f.b64), f.type, f.name);",
       "  });",
-      "  MailApp.sendEmail({ to: TO, subject: d.subject, body: d.text, attachments: files });",
+      "  var body = d.text || \"\";",
+      "  // a copy of every file in Drive: Empratour/<month>/, the newest copy of a day replacing the older one",
+      "  try {",
+      "    var dir = folder(folder(DriveApp.getRootFolder(), ROOT), d.folder || \"\");",
+      "    files.forEach(function (b) {",
+      "      var old = dir.getFilesByName(b.getName());",
+      "      while (old.hasNext()) old.next().setTrashed(true);",
+      "      dir.createFile(b.copyBlob().setName(b.getName()));",
+      "    });",
+      "  } catch (err) {",
+      "    body += \"\\n\\nDrive: \" + err;",
+      "  }",
+      "  MailApp.sendEmail({ to: TO, subject: d.subject, body: body, attachments: files });",
       "  if (d.id) seen.put(d.id, \"1\", 21600);",
       "  return ContentService.createTextOutput(\"ok\");",
+      "}",
+      "",
+      "function folder(parent, name) {",
+      "  if (!name) return parent;",
+      "  var it = parent.getFoldersByName(name);",
+      "  return it.hasNext() ? it.next() : parent.createFolder(name);",
       "}",
       ""
     ].join("\n");
@@ -7685,6 +7707,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         if (!rec) return null;                               // gone (restored over): nothing to send
         var k = dayKey(new Date(rec.closedAt));
         p.subject = "El Empratour · " + t("Shift report") + " " + rec.no + " · " + k;
+        p.folder = k.slice(0, 7);
         p.text = shiftText(rec) + "\n\n" + daySummaryText(k);
         att.push({ name: xlsName(k), type: XLS_TYPE, blob: new Blob([dayWorkbook(k)], { type: XLS_TYPE }) });
         // the file that puts the till back if the tablet is wiped
@@ -7692,6 +7715,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
           blob: new Blob([JSON.stringify(snapshot())], { type: "application/json" }) });
       } else if (job.kind === "month") {
         p.subject = "El Empratour · " + t("Month report") + " " + job.mk;
+        p.folder = String(job.mk || "").slice(0, 7);
         p.text = monthSummaryText(job.mk);
         att.push({ name: monthXlsName(job.mk), type: XLS_TYPE, blob: new Blob([monthWorkbook(job.mk)], { type: XLS_TYPE }) });
       } else {
