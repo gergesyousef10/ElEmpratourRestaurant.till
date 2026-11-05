@@ -881,6 +881,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
   var LANG = "en";
   var AR = {
     "Shift reports go to the owner's email.":"تقارير الورديات بتتبعت على إيميل صاحب المطعم.",
+    "While the reports are emailed, this device saves no Excel files by itself.":"طول ما التقارير بتتبعت على الإيميل، الجهاز ده مش بيحفظ ملفات إكسل لوحده.",
     "Only a manager can see shift reports.":"تقارير الورديات يشوفها المدير بس.",
     "The full report is on its way to the owner's email.":"التقرير الكامل في طريقه لإيميل صاحب المطعم.",
     "The report is saved for the manager.":"التقرير محفوظ للمدير.",
@@ -892,7 +893,9 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     "The full report will go to the owner's email as soon as there is internet.":"التقرير الكامل هيتبعت على إيميل صاحب المطعم أول ما النت يرجع.",
     "Automatic email to the owner":"إيميل تلقائي لصاحب المطعم",
     "Every time a shift closes, the full shift report and the day's Excel are emailed to you by themselves, and a copy of every file is kept in your Google Drive, in a folder called Empratour with one folder per month. The tablet then shows no totals to anyone without a manager PIN, and saves no Excel files of its own.":"كل ما وردية تتقفل، تقرير الوردية الكامل و ملف إكسل اليوم بيتبعتولك على الإيميل لوحدهم، و نسخة من كل ملف بتتحفظ في Google Drive بتاعك، في فولدر اسمه Empratour جواه فولدر لكل شهر. التابلت ساعتها مش بيعرض أي أرقام لحد من غير PIN المدير، و مش بيحفظ ملفات إكسل عنده.",
-    "When Google asks, allow it to send email as you and to see and add files in your Drive. It only ever writes inside the Empratour folder.":"لما جوجل يسألك، وافق إنه يبعت إيميل باسمك و يشوف و يضيف ملفات في Drive بتاعك. هو مش بيكتب غير جوه فولدر Empratour.",
+    "When Google asks, allow it to send email as you and to use your Drive. Google words this as access to all your Drive files; the script above only creates the Empratour folder and the files in it — you can read every line of it.":"لما جوجل يسألك، وافق إنه يبعت إيميل باسمك و يستخدم Drive بتاعك. جوجل بيكتبها على إنها صلاحية على كل ملفات Drive؛ السكريبت اللي فوق مش بيعمل غير فولدر Empratour و الملفات اللي جواه — و تقدر تقرا كل سطر فيه.",
+    "The email works, but the copy in Drive did not.":"الإيميل شغال، بس النسخة في Drive ماتحفظتش.",
+    "The email works, but this is the older script with no Drive copy. Copy the script again and deploy a new version.":"الإيميل شغال، بس ده السكريبت القديم اللي مش بيحفظ في Drive. انسخ السكريبت تاني و انشر نسخة جديدة.",
     "Write your email above first.":"اكتب إيميلك فوق الأول.",
     "1. Copy this script":"1. انسخ السكريبت ده","Copy the script":"انسخ السكريبت","Copied":"اتنسخ",
     "Open script.google.com, start a new project, delete what is there and paste this. Then Deploy → New deployment → type Web app → Execute as: Me → Who has access: Anyone → Deploy, and allow it.":"افتح script.google.com، اعمل مشروع جديد، امسح اللي فيه و الصق ده. بعدين Deploy ← New deployment ← النوع Web app ← Execute as: Me ← Who has access: Anyone ← Deploy، و وافق على الصلاحيات.",
@@ -1881,15 +1884,15 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
   function applyOp(op) {
     if (op.t === "doc") return DB.doc(op.path).set(op.data);
     if (op.t === "order") {
-      var ref = DB.doc("sales/" + op.day);
-      return ref.get().then(function (s) {
+      return DB.doc("sales/" + op.day).update(function (s) {
         var arr = (s.exists && Array.isArray(s.data().orders)) ? s.data().orders : [];
-        return ref.set({ orders: mergeOrders(arr, [op.order]) });
+        // mergeOrders rewrites refs on the objects it is given: work on copies,
+        // because a transaction may run this more than once
+        return { orders: mergeOrders(JSON.parse(JSON.stringify(arr)), [JSON.parse(JSON.stringify(op.order))]) };
       });
     }
     if (op.t === "stock") {
-      var sr = DB.doc("state/stock");
-      return sr.get().then(function (s) {
+      return DB.doc("state/stock").update(function (s) {
         var cur = (s.exists && s.data()) ? s.data() : {};
         var seen = Array.isArray(cur.seen) ? cur.seen : [];
         if (op.qid && seen.indexOf(op.qid) >= 0) return null;   // already counted
@@ -1918,52 +1921,46 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
           qn[id] = Math.max(0, Math.round((gbase + op.ings[id]) * 1000) / 1000);
         });
         if (op.qid) { seen = seen.concat([op.qid]); if (seen.length > 400) seen = seen.slice(-400); }
-        return sr.set({ items: qi, ings: qn, mains: qm, seen: seen });
+        return { items: qi, ings: qn, mains: qm, seen: seen };
       });
     }
     if (op.t === "parked") {
-      var tr = DB.doc("state/tables");
-      return tr.get().then(function (s) {
+      return DB.doc("state/tables").update(function (s) {
         var d = (s.exists && s.data()) ? s.data() : {};
-        return tr.set({ list: d.list && d.list.length ? d.list : S.tables,
-          parked: livingParked(mergeBy(d.parked || [], [op.rec], "id", "upd")) });
+        return { list: d.list && d.list.length ? d.list : S.tables,
+          parked: livingParked(mergeBy(d.parked || [], [op.rec], "id", "upd")) };
       });
     }
     if (op.t === "shift") {
-      var fr = DB.doc("state/shift");
-      return fr.get().then(function (s) {
+      return DB.doc("state/shift").update(function (s) {
         var d = (s.exists && s.data()) ? s.data() : {};
         var mine = op.shift, theirs = d.current;
         if (theirs && mine && (Number(theirs.upd) || 0) > (Number(mine.upd) || 0)) return null;
-        return fr.set({ current: mine, upd: op.upd });
+        return { current: mine, upd: op.upd };
       });
     }
     if (op.t === "shiftClose") {
-      var hr = DB.doc("state/shifts");
-      return hr.get().then(function (s) {
+      return DB.doc("state/shifts").update(function (s) {
         var list = (s.exists && Array.isArray(s.data().list)) ? s.data().list : [];
-        return hr.set({ list: mergeBy(list, [op.rec], "no", "closedTs").slice(0, 200) });
+        return { list: mergeBy(list, [op.rec], "no", "closedTs").slice(0, 200) };
       });
     }
     if (op.t === "clock") {
-      var cr = DB.doc("state/clock");
-      return cr.get().then(function (s) {
+      return DB.doc("state/clock").update(function (s) {
         var list = (s.exists && Array.isArray(s.data().list)) ? s.data().list : [];
-        return cr.set({ list: mergeBy(list, [op.rec], "rec", "upd").slice(0, 400) });
+        return { list: mergeBy(list, [op.rec], "rec", "upd").slice(0, 400) };
       });
     }
     if (op.t === "expense") {
-      var er = DB.doc("state/expenses");
-      return er.get().then(function (s) {
+      return DB.doc("state/expenses").update(function (s) {
         var list = (s.exists && Array.isArray(s.data().list)) ? s.data().list : [];
-        return er.set({ list: mergeBy(list, [op.rec], "id", "upd").slice(0, 3000) });
+        return { list: mergeBy(list, [op.rec], "id", "upd").slice(0, 3000) };
       });
     }
     if (op.t === "cust") {
-      var ur = DB.doc("state/customers");
-      return ur.get().then(function (s) {
+      return DB.doc("state/customers").update(function (s) {
         var list = (s.exists && Array.isArray(s.data().list)) ? s.data().list : [];
-        return ur.set({ list: mergeBy(list, [op.rec], "id", "upd").slice(0, 2000) });
+        return { list: mergeBy(list, [op.rec], "id", "upd").slice(0, 2000) };
       });
     }
     return Promise.resolve();
@@ -2091,6 +2088,11 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
           return lanJson(u, { method: "PUT", headers: { "Content-Type": "application/json" },
             body: JSON.stringify(d) });
         },
+        // the till server has no transactions; one box serves one restaurant
+        update: function (fn) {
+          var self = this;
+          return self.get().then(function (snap) { var v = fn(snap); return v != null ? self.set(v) : null; });
+        },
         onSnapshot: function (cb) {
           var last = null, dead = false;
           (function tick() {
@@ -2187,6 +2189,19 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         return {
           get: function () { return withTimeout(r.get({ source: "server" }), 15000); },
           set: function (d) { return withTimeout(r.set(d), 15000); },
+          /* Read, change, write — as ONE step. Two tablets each reading the
+             day's orders, adding their own and writing the list back used to
+             lose whichever order was written first. In a transaction Firestore
+             re-runs fn on the newer copy instead. fn must only compute: it may
+             run more than once. Returning null writes nothing. */
+          update: function (fn) {
+            return withTimeout(fs.runTransaction(function (tx) {
+              return tx.get(r).then(function (snap) {
+                var v = fn(snap);
+                if (v != null) tx.set(r, v);
+              });
+            }), 20000);
+          },
           onSnapshot: function (cb, err) { return r.onSnapshot(cb, err || function () {}); }
         };
       },
@@ -3705,6 +3720,18 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
       x.setAttribute("aria-pressed", String(x.dataset.type === S.type));
     });
     if (sold && S.table) saveTableTicket();
+    // a parked check with no table keeps its own copy of the items: bring it
+    // down to what is left, or recalling it later charges the paid part again
+    if (sold && !S.table && S.editing) {
+      var pk = S.parked.filter(function (x) { return x.id === S.editing && !x.del; })[0];
+      if (pk) {
+        pk.cart = S.cart.map(function (l) {
+          return { uid: l.uid, id: l.id, qty: l.qty, opts: (l.opts || []).slice(), note: l.note || "", px: Number(l.px) > 0 ? Number(l.px) : 0 };
+        });
+        pk.disc = S.disc; pk.total = totals().total; pk.billed = false; pk.upd = Date.now();
+        queueParked(pk);
+      }
+    }
     renderTicket(); renderItems(); updateBadges();
     if (sold) toast(t("Part paid. The rest is still on the check."));
   }
@@ -4642,6 +4669,8 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     });
     return out.sort(function (a, b) { return a.ts < b.ts ? 1 : -1; });
   }
+  // a line's money: a check on the house brought nothing in, whatever its items cost
+  function lineMoney(o, l) { return o && o.comp ? 0 : (Number(l.amount) || 0); }
   // wallet and hospitality lines, shown only when there is something to show
   function moreRows(s) {
     var r = [];
@@ -5587,7 +5616,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
       o.lines.forEach(function (l) {
         var it = byId(l.id);
         var c = it ? it.cat : "—";
-        byCat[c] = (byCat[c] || 0) + l.amount;
+        byCat[c] = (byCat[c] || 0) + lineMoney(o, l);
       });
     });
     function sortRows(obj, fmt) {
@@ -5624,7 +5653,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
       o.lines.forEach(function (l) {
         var key = l.id || l.name;
         if (!agg[key]) agg[key] = { qty: 0, amt: 0, n: (LANG === "ar" && l.ar ? l.ar : l.name) };
-        agg[key].qty += l.qty; agg[key].amt += l.amount;
+        agg[key].qty += l.qty; agg[key].amt += lineMoney(o, l);
       });
     });
     var top = Object.keys(agg).map(function (n) { return { n: agg[n].n, q: agg[n].qty, a: agg[n].amt }; })
@@ -5948,7 +5977,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
           o.pay || "", o.fx ? o.fx.cur : "EGP", o.fx && ix === 0 ? o.fx.amt : "", o.fx ? o.fx.rate : "",
           o.void ? "VOID" : "", l.name,
           (l.opts || []).map(function (x) { return x.name; }).join(" / "),
-          l.qty, cn(l.unit), o.void ? 0 : cn(l.amount),
+          l.qty, cn(l.unit), o.void ? 0 : cn(lineMoney(o, l)),
           ix === 0 ? (o.void ? 0 : cn(o.disc || 0)) : "", ix === 0 ? (o.void ? 0 : cn(o.service)) : "",
           ix === 0 ? (o.void ? 0 : cn(o.vat)) : "", ix === 0 ? (o.void ? 0 : cn(o.total)) : "",
           ix === 0 ? (o.void ? 0 : cn(o.tip || 0)) : "", ix === 0 ? cn(o.refund || 0) : ""]);
@@ -6038,7 +6067,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
       (hasTo
         ? '<p class="eyebrow" style="margin:0">' + esc(t("1. Copy this script")) + "</p>" +
           '<p class="hint" style="margin:0">' + esc(t("Open script.google.com, start a new project, delete what is there and paste this. Then Deploy → New deployment → type Web app → Execute as: Me → Who has access: Anyone → Deploy, and allow it.")) + "</p>" +
-          '<p class="hint" style="margin:0">' + esc(t("When Google asks, allow it to send email as you and to see and add files in your Drive. It only ever writes inside the Empratour folder.")) + "</p>" +
+          '<p class="hint" style="margin:0">' + esc(t("When Google asks, allow it to send email as you and to use your Drive. Google words this as access to all your Drive files; the script above only creates the Empratour folder and the files in it — you can read every line of it.")) + "</p>" +
           '<textarea id="mailScript" readonly rows="6" style="width:100%;font-family:var(--mono);font-size:11px" dir="ltr">' + esc(mailScript()) + "</textarea>" +
           '<div class="t-tools" style="max-width:420px"><button type="button" id="mailCopy">' + esc(t("Copy the script")) + "</button></div>" +
           '<div class="fld" style="max-width:520px"><label for="mailHook">' + esc(t("2. Paste the Web app URL here")) + "</label>" +
@@ -6047,6 +6076,8 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         : '<p class="hint" style="margin:0;color:var(--warn)">' + esc(t("Write your email above first.")) + "</p>") +
       (hook ? '<dl class="kv"><dt>' + esc(t("Waiting to send")) + "</dt><dd>" + mailQ().length + "</dd>" +
           "<dt>" + esc(t("Last email")) + "</dt><dd>" + esc(mailLast() ? whenStr(new Date(mailLast()).toISOString()) : t("Never")) + "</dd>" +
+          (mailVer() != null && mailVer() < MAIL_SCRIPT_VER ? "<dt>Drive</dt><dd style=\"color:var(--warn)\">" +
+            esc(t("The email works, but this is the older script with no Drive copy. Copy the script again and deploy a new version.")) + "</dd>" : "") +
           (mailErr() ? "<dt>" + esc(t("Last problem")) + '</dt><dd style="color:var(--bad)">' +
             esc(whenStr(new Date(mailErr().at).toISOString())) + " · " +
             esc(mailErr().msg === "denied" ? t("The script refused it. Copy the script again and deploy a new version.") : mailErr().msg) + "</dd>" : "") +
@@ -6059,6 +6090,8 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     $("xlsPanel").innerHTML = '<div class="stack">' +
       '<p class="hint" style="margin:0">' + esc(t("A full workbook for each day: summary, every order, items sold, expenses, shifts and stock.")) + "</p>" +
       '<p class="hint" style="margin:0">' + esc(t("A second file, Empratour-backup-DATE.json, is saved beside it. Excel is for reading; that one puts the till back if the tablet is ever wiped. Keep both.")) + "</p>" +
+      (S.settings.mailHook ? '<p class="hint" style="margin:0;color:var(--warn)">' +
+        esc(t("While the reports are emailed, this device saves no Excel files by itself.")) + "</p>" : "") +
       '<div class="seg" id="xlsAuto" style="max-width:320px">' +
         '<button type="button" data-a="1" aria-pressed="' + auto + '">' + esc(t("Save automatically")) + "</button>" +
         '<button type="button" data-a="0" aria-pressed="' + (!auto) + '">' + esc(t("Only when I ask")) + "</button>" +
@@ -6121,7 +6154,12 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     if ($("mailTest")) $("mailTest").addEventListener("click", function () {
       var b = $("mailTest"); b.disabled = true;
       mailPayload({ kind: "test", id: "test-" + uid() + uid() }).then(postMail)
-        .then(function () { setMailErr(null); toast(t("Test sent — check your inbox.")); },
+        .then(function (res) {
+          mailOutcome(res);
+          if (res.drive) toast(t("The email works, but the copy in Drive did not.") + " " + res.drive, true);
+          else if (res.ver < MAIL_SCRIPT_VER) toast(t("The email works, but this is the older script with no Drive copy. Copy the script again and deploy a new version."), true);
+          else toast(t("Test sent — check your inbox.") + " · Drive ✓");
+        },
           function (err) {
             setMailErr(err && err.message || err);
             toast(err && err.denied ? t("The script refused it. Copy the script again and deploy a new version.")
@@ -7126,7 +7164,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     }
     live.concat(orders.filter(function (o) { return o.void; })).forEach(function (o) {
       xlLines(o).forEach(function (l, ix) {
-        amtTotal += (o.void || l.gone) ? 0 : l.amount;
+        amtTotal += (o.void || l.gone) ? 0 : lineMoney(o, l);
         if (ix === 0 && !o.void) { totTotal += o.total; tipTotal += (Number(o.tip) || 0); }
         if (ix === 0) refTotal += (Number(o.refund) || 0);
         orows.push([
@@ -7137,7 +7175,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
           o.void ? t("Voided") : "",
           LANG === "ar" && l.ar ? l.ar : l.name,
           (l.opts || []).map(function (x) { return LANG === "ar" && x.ar ? x.ar : x.name; }).join(" / "),
-          l.note || "", l.qty, M(r2(l.unit)), (o.void || l.gone) ? "" : M(r2(l.amount)),
+          l.note || "", l.qty, M(r2(l.unit)), (o.void || l.gone) ? "" : M(r2(lineMoney(o, l))),
           ix === 0 && !o.void ? M(r2(o.disc || 0)) : "", ix === 0 && !o.void ? M(r2(o.service)) : "",
           ix === 0 && !o.void ? M(r2(o.vat)) : "", ix === 0 && !o.void ? M(r2(o.total)) : "",
           ix === 0 && !o.void && o.tip ? M(r2(o.tip)) : "",
@@ -7164,7 +7202,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         var it = byId(l.id);
         var key = l.id || l.name;
         if (!agg[key]) agg[key] = { nm: l.name || "", ar: l.ar || "", cat: it ? it.cat : "", qty: 0, amt: 0 };
-        agg[key].qty += l.qty; agg[key].amt += l.amount;
+        agg[key].qty += l.qty; agg[key].amt += lineMoney(o, l);
       });
     });
     var keys = Object.keys(agg).sort(function (a, b) { return agg[b].qty - agg[a].qty; });
@@ -7300,7 +7338,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     /* ---- Day by day ---- */
     var dh = [t("Day"), t("Orders"), t("Items sold"), t("Subtotal"), t("Discounts"),
       t("Service"), t("VAT"), t("Extra"), t("Gross") + " " + cu, t("Cash sales"), t("Card sales"),
-      t("Refunded"), t("Voided"), t("Expenses"), t("Net income") + " " + cu];
+      t("InstaPay"), t("Vodafone Cash"), t("Refunded"), t("Voided"), t("Expenses"), t("Net income") + " " + cu];
     var drows = [dh.map(H)];
     var T = { n: 0, items: 0, sub: 0, disc: 0, srv: 0, vat: 0, tips: 0, stips: 0, gross: 0,
               cash: 0, card: 0, ip: 0, vf: 0, comp: 0, compVal: 0, refunds: 0, voids: 0, exp: 0, net: 0 };
@@ -7315,7 +7353,8 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
       T.ip += sm.ip; T.vf += sm.vf; T.comp += sm.comp; T.compVal += sm.compVal;
       T.exp += xa; T.net += net;
       drows.push([k, sm.n, sm.items, M(r2(sm.sub)), M(r2(sm.disc)), M(r2(sm.srv)), M(r2(sm.vat)),
-        M(r2(sm.tips)), BM(r2(sm.gross)), M(r2(sm.cash)), M(r2(sm.card)), M(r2(sm.refunds)),
+        M(r2(sm.tips)), BM(r2(sm.gross)), M(r2(sm.cash)), M(r2(sm.card)),
+        M(r2(sm.ip)), M(r2(sm.vf)), M(r2(sm.refunds)),
         sm.voids, M(r2(xa)), BM(r2(net))]);
     });
     var first = 2, last = drows.length;
@@ -7325,8 +7364,9 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         sumF("F", first, last, r2(T.srv)), sumF("G", first, last, r2(T.vat)),
         sumF("H", first, last, r2(T.tips)), sumF("I", first, last, r2(T.gross)),
         sumF("J", first, last, r2(T.cash)), sumF("K", first, last, r2(T.card)),
-        sumF("L", first, last, r2(T.refunds)), sumF("M", first, last, T.voids),
-        sumF("N", first, last, r2(T.exp)), sumF("O", first, last, r2(T.net))]);
+        sumF("L", first, last, r2(T.ip)), sumF("M", first, last, r2(T.vf)),
+        sumF("N", first, last, r2(T.refunds)), sumF("O", first, last, T.voids),
+        sumF("P", first, last, r2(T.exp)), sumF("Q", first, last, r2(T.net))]);
     } else drows.push(["\u2014"]);
 
     /* ---- Summary ---- */
@@ -7377,7 +7417,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         o.lines.forEach(function (l) {
           var key = l.id || l.name, it = byId(l.id);
           if (!agg[key]) agg[key] = { nm: l.name || "", ar: l.ar || "", cat: it ? it.cat : "", qty: 0, amt: 0 };
-          agg[key].qty += l.qty; agg[key].amt += l.amount;
+          agg[key].qty += l.qty; agg[key].amt += lineMoney(o, l);
         });
       });
     });
@@ -7420,7 +7460,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     return workbook([
       { name: t("Summary"), rows: sum, widths: [34, 16, 16, 16] },
       { name: t("Day by day"), rows: drows,
-        widths: [12, 8, 9, 12, 11, 11, 11, 10, 14, 12, 12, 11, 8, 12, 14] },
+        widths: [12, 8, 9, 12, 11, 11, 11, 10, 14, 12, 12, 12, 13, 11, 8, 12, 14] },
       { name: t("Items sold"), rows: irows, widths: [30, 24, 16, 10, 14] },
       { name: t("Expenses"), rows: erows, widths: [12, 8, 16, 30, 12, 14, 14] },
       { name: t("Shifts"), rows: frows, widths: [12, 8, 16, 16, 13, 14, 12, 12] }
@@ -7634,51 +7674,82 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
   /* The script answers "ok" only once the email is really sent, and it
      remembers each job id for six hours, so a job sent again because its
      answer was lost on the way back is not emailed twice. */
+  /* The script, as the owner pastes it into script.google.com.
+     - "ok" comes back only once the email has really gone; anything else and
+       the till keeps the job and tries again later
+     - a job id is remembered for six hours, so a resend after a lost reply is
+       not emailed twice
+     - the email goes FIRST and the Drive copy after it, so a failing email
+       never touches Drive, and a failing Drive never holds up the email
+     - the new Drive copy is written before the older one is put in the bin,
+       so a full Drive can never leave a day with no copy at all
+     - folders and files in the bin are never reused
+     - one report at a time (LockService), so two tablets sending together
+       cannot make two folders of the same name
+     - the answer carries the script's version and any Drive problem, so the
+       till can say so in Setup */
+  var MAIL_SCRIPT_VER = 2;
   function mailScript() {
     return [
-      "// El Empratour Cashier - sends the till's reports to the owner.",
+      "// El Empratour Cashier - sends the till's reports to the owner",
+      "// and keeps a copy of every file in Drive, in the Empratour folder.",
       "// Deploy > New deployment > Web app. Execute as: Me. Who has access: Anyone.",
       "var TO = " + JSON.stringify((S.settings.mailTo || "").trim()) + ";",
       "var KEY = " + JSON.stringify(mailKey()) + ";",
-      "",
       "var ROOT = \"Empratour\";",
+      "var VERSION = " + MAIL_SCRIPT_VER + ";",
       "",
       "function doPost(e) {",
       "  var d = JSON.parse(e.postData.contents);",
-      "  if (d.key !== KEY) return ContentService.createTextOutput(\"denied\");",
-      "  var seen = CacheService.getScriptCache();",
-      "  if (d.id && seen.get(d.id)) return ContentService.createTextOutput(\"ok\");",
-      "  var files = (d.files || []).map(function (f) {",
-      "    return Utilities.newBlob(Utilities.base64Decode(f.b64), f.type, f.name);",
-      "  });",
-      "  var body = d.text || \"\";",
-      "  // a copy of every file in Drive: Empratour/<month>/, the newest copy of a day replacing the older one",
+      "  if (d.key !== KEY) return out(\"denied\");",
+      "  var lock = LockService.getScriptLock();",
+      "  lock.waitLock(30000);",
       "  try {",
-      "    var dir = folder(folder(DriveApp.getRootFolder(), ROOT), d.folder || \"\");",
-      "    files.forEach(function (b) {",
-      "      var old = dir.getFilesByName(b.getName());",
-      "      while (old.hasNext()) old.next().setTrashed(true);",
-      "      dir.createFile(b.copyBlob().setName(b.getName()));",
+      "    var seen = CacheService.getScriptCache();",
+      "    if (d.id && seen.get(d.id)) return out(\"ok v\" + VERSION);",
+      "    var files = (d.files || []).map(function (f) {",
+      "      return { blob: Utilities.newBlob(Utilities.base64Decode(f.b64), f.type, f.name),",
+      "               folder: f.folder || d.folder || \"\" };",
       "    });",
-      "  } catch (err) {",
-      "    body += \"\\n\\nDrive: \" + err;",
+      "    MailApp.sendEmail({ to: TO, subject: d.subject, body: d.text || \"\",",
+      "      attachments: files.map(function (f) { return f.blob; }) });",
+      "    if (d.id) seen.put(d.id, \"1\", 21600);",
+      "    var problem = \"\";",
+      "    try {",
+      "      var root = folder(DriveApp.getRootFolder(), ROOT);",
+      "      files.forEach(function (f) {",
+      "        var dir = folder(root, f.folder);",
+      "        var name = f.blob.getName();",
+      "        var made = dir.createFile(f.blob.copyBlob().setName(name));",
+      "        var old = dir.getFilesByName(name);",
+      "        while (old.hasNext()) {",
+      "          var o = old.next();",
+      "          if (o.getId() !== made.getId() && !o.isTrashed()) o.setTrashed(true);",
+      "        }",
+      "      });",
+      "    } catch (err) {",
+      "      problem = \" drive: \" + err;",
+      "    }",
+      "    return out(\"ok v\" + VERSION + problem);",
+      "  } finally {",
+      "    lock.releaseLock();",
       "  }",
-      "  MailApp.sendEmail({ to: TO, subject: d.subject, body: body, attachments: files });",
-      "  if (d.id) seen.put(d.id, \"1\", 21600);",
-      "  return ContentService.createTextOutput(\"ok\");",
       "}",
+      "",
+      "function out(x) { return ContentService.createTextOutput(x); }",
       "",
       "function folder(parent, name) {",
       "  if (!name) return parent;",
       "  var it = parent.getFoldersByName(name);",
-      "  return it.hasNext() ? it.next() : parent.createFolder(name);",
+      "  while (it.hasNext()) { var f = it.next(); if (!f.isTrashed()) return f; }",
+      "  return parent.createFolder(name);",
       "}",
       ""
     ].join("\n");
   }
   function queueMail(job) {
     if (!S.settings.mailHook) return;
-    job.id = uid() + uid() + uid(); job.at = Date.now(); job.tries = 0; job.next = 0;
+    job.id = job.fixedId || (uid() + uid() + uid()); job.at = Date.now(); job.tries = 0; job.next = 0;
     var q = mailQ(); q.push(job); setMailQ(q);
     setTimeout(pumpMail, 1500);
   }
@@ -7709,21 +7780,27 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         p.subject = "El Empratour · " + t("Shift report") + " " + rec.no + " · " + k;
         p.folder = k.slice(0, 7);
         p.text = shiftText(rec) + "\n\n" + daySummaryText(k);
-        att.push({ name: xlsName(k), type: XLS_TYPE, blob: new Blob([dayWorkbook(k)], { type: XLS_TYPE }) });
-        // the file that puts the till back if the tablet is wiped
-        att.push({ name: bakName(k), type: "application/json",
+        att.push({ name: xlsName(k), type: XLS_TYPE, folder: k.slice(0, 7),
+          blob: new Blob([dayWorkbook(k)], { type: XLS_TYPE }) });
+        // the file that puts the till back if the tablet is wiped. It holds the
+        // till as it is NOW, so it carries today's date: a report sent late
+        // must not overwrite an older day's real backup with a newer state
+        var now = dayKey();
+        att.push({ name: bakName(now), type: "application/json", folder: now.slice(0, 7),
           blob: new Blob([JSON.stringify(snapshot())], { type: "application/json" }) });
       } else if (job.kind === "month") {
         p.subject = "El Empratour · " + t("Month report") + " " + job.mk;
-        p.folder = String(job.mk || "").slice(0, 7);
+        p.folder = job.mk;
         p.text = monthSummaryText(job.mk);
-        att.push({ name: monthXlsName(job.mk), type: XLS_TYPE, blob: new Blob([monthWorkbook(job.mk)], { type: XLS_TYPE }) });
+        att.push({ name: monthXlsName(job.mk), type: XLS_TYPE, folder: job.mk,
+          blob: new Blob([monthWorkbook(job.mk)], { type: XLS_TYPE }) });
       } else {
         p.subject = "El Empratour · " + t("Test email from the till");
+        p.test = true;
         p.text = t("Test email from the till") + " · " + whenStr(new Date().toISOString());
       }
       return Promise.all(att.map(function (f) { return blobB64(f.blob); })).then(function (bs) {
-        p.files = att.map(function (f, i) { return { name: f.name, type: f.type, b64: bs[i] }; });
+        p.files = att.map(function (f, i) { return { name: f.name, type: f.type, folder: f.folder, b64: bs[i] }; });
         return p;
       });
     }).catch(function (err) {
@@ -7734,16 +7811,28 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
   }
   // only an "ok" from the script counts. Anything else — "denied", a Google
   // error page, no answer — leaves the job waiting to be tried again.
+  var MAILVER_KEY = LS_KEY + ":mailver";
+  function mailVer() { try { var v = localStorage.getItem(MAILVER_KEY); return v == null ? null : Number(v); } catch (e) { return null; } }
   function postMail(p) {
     return fetch(S.settings.mailHook, { method: "POST", redirect: "follow", body: JSON.stringify(p) })
       .then(function (r) { return r.text(); })
       .then(function (x) {
         x = String(x || "").trim();
-        if (x === "ok") return x;
+        var m = /^ok(?: v(\d+))?(?: drive: ([\s\S]*))?$/.exec(x);
+        if (m) {
+          // a script from before the Drive copy answers a bare "ok"
+          var res = { ver: m[1] ? Number(m[1]) : 1, drive: m[2] ? m[2].slice(0, 140) : "" };
+          try { localStorage.setItem(MAILVER_KEY, String(res.ver)); } catch (e) {}
+          return res;
+        }
         var e = new Error(x === "denied" ? "denied" : (x.slice(0, 120) || "no answer"));
         e.denied = x === "denied";
         throw e;
       });
+  }
+  // the email went; say so, and say if the Drive copy did not
+  function mailOutcome(res) {
+    setMailErr(res && res.drive ? "Drive: " + res.drive : null);
   }
   var mailBusy = false;
   function pumpMail(force) {
@@ -7752,13 +7841,13 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     var job = mailQ().filter(function (j) { return force === true || !(Number(j.next) > now); })[0];
     if (!job) return;
     mailBusy = true;
-    mailPayload(job).then(function (p) { return p ? postMail(p) : "skip"; }).then(function () {
+    mailPayload(job).then(function (p) { return p ? postMail(p) : null; }).then(function (res) {
       mailBusy = false;
       // the link works again, so nothing else needs to sit out its wait
       setMailQ(mailQ().filter(function (j) { return j.id !== job.id; })
         .map(function (j) { j.next = 0; return j; }));
       try { localStorage.setItem(MAILLAST_KEY, String(Date.now())); } catch (e) {}
-      setMailErr(null);
+      if (res) mailOutcome(res);
       if (job.kind === "month") markMonthSent(job.mk);
       if (S.tab === "setup") renderXls();
       setTimeout(pumpMail, 1000);
@@ -7782,7 +7871,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     if (!monthDays(mk).length) return;
     if ((S.settings.sentMonths || {})[mk]) return;
     if (mailQ().some(function (j) { return j.kind === "month" && j.mk === mk; })) return;
-    queueMail({ kind: "month", mk: mk });
+    queueMail({ kind: "month", mk: mk, fixedId: "month-" + mk + "-" + mailKey().slice(0, 8) });
   }
   window.addEventListener("online", function () { setTimeout(function () { pumpMail(true); }, 3000); });
   setInterval(pumpMail, 60 * 1000);
