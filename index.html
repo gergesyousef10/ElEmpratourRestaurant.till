@@ -5799,7 +5799,12 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     // NEVER out of the staff's tip. That money stopped being the restaurant's
     // the moment the customer handed it over; refunding out of it paid the
     // customer with the waiters' money and left the card takings overstated.
-    var cashPool = Math.max(0, r2(oldEgpIn - oldStipCash));
+    // a check paid in foreign notes put only the change into the EGP drawer
+    // (egpIn is minus the change), so its cash pool is the check's own cash
+    // value: the refund is handed back in pounds out of the drawer. Using
+    // egpIn here booked it "off the card" of a check that had no card, the
+    // card stayed at zero, and the refunded money vanished from the books.
+    var cashPool = ord.fx ? Math.max(0, oldCash) : Math.max(0, r2(oldEgpIn - oldStipCash));
     var fromCash = Math.min(cashPool, back);
     var fromCard = r2(back - fromCash);
     ord.cash = Math.max(0, r2(oldCash - fromCash));
