@@ -297,6 +297,9 @@ td .ar{display:block;font-size:12px;color:var(--txt-3);margin-top:1px}
 .tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:13px 14px}
 .tile .k{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--txt-3)}
 .tile .v{font-family:var(--mono);font-size:24px;font-weight:600;margin-top:5px;line-height:1.1}
+.tile .s{font-size:12px;color:var(--txt-3);margin-top:4px}
+.tile.wide{grid-column:span 2}
+.tile .v{overflow-wrap:anywhere}
 .tile.gold .v{color:var(--gold-lt)}
 .tile.warn .v{color:var(--warn)}
 .tile.bad .v{color:var(--bad)}
@@ -681,6 +684,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
       <div id="shiftNow"></div>
       <div class="bar" style="margin:24px 0 10px">
         <p class="eyebrow grow" style="margin:0" data-t="Expenses">Expenses</p>
+        <button class="btn" id="addCashBtn" type="button" data-t="+ Add cash to drawer">+ Add cash to drawer</button>
         <button class="btn" id="addExpBtn" type="button" data-t="+ Add expense">+ Add expense</button>
       </div>
       <div class="panel" id="expPanel"></div>
@@ -883,6 +887,13 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
   /* ============ language ============ */
   var LANG = "en";
   var AR = {
+    "Last stocktake · difference":"آخر جرد · الفرق",
+    "Move to the fridge":"محتاج يتنقل للثلاجة",
+    "+ Add cash to drawer":"+ إضافة فلوس للدرج","Add cash to drawer":"إضافة فلوس للدرج",
+    "Cash added to drawer":"فلوس اتضافت للدرج","Where is it from?":"جاية منين؟",
+    "Money put into the drawer from outside — change, or cash for expenses. It is added to what the drawer should hold.":"فلوس اتحطت في الدرج من بره — فكة، أو كاش للمصاريف. بتتضاف على المفروض في الدرج.",
+    "Supervisor PIN":"PIN المشرف",
+    "The drawer is short of pounds: add cash to the drawer first.":"الدرج مفيهوش جنيهات كفاية: ضيف فلوس للدرج الأول.",
     "Shift reports go to the owner's email.":"تقارير الورديات بتتبعت على إيميل صاحب المطعم.",
     "While the reports are emailed, this device saves no Excel files by itself.":"طول ما التقارير بتتبعت على الإيميل، الجهاز ده مش بيحفظ ملفات إكسل لوحده.",
     "Only a manager can see shift reports.":"تقارير الورديات يشوفها المدير بس.",
@@ -1498,10 +1509,15 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
   function nm(i) { return (LANG === "ar" && i && i.ar) ? i.ar : (i ? i.name : ""); }
   function nm2(i) { return (LANG === "ar" && i && i.ar) ? i.name : (i ? (i.ar || "") : ""); }
   function roleLabel(r) { return t(ROLE_LABEL[r] || r); }
+  /* What can still be sold: the fridge AND the main store. A sale takes from
+     the fridge first and the rest from the main store, so an empty fridge in
+     front of a full store no longer reads "sold out" or stops the till. */
+  function avail(i) { return (Number(i.stock) || 0) + (Number(i.main) || 0); }
+  function lowAt(i) { return i.low == null ? S.settings.low : i.low; }
   function stockState(i) {
     if (!i.track) return "free";
-    if (i.stock <= 0) return "out";
-    if (i.stock <= (i.low == null ? S.settings.low : i.low)) return "low";
+    if (avail(i) <= 0) return "out";
+    if (avail(i) <= lowAt(i)) return "low";
     return "ok";
   }
   function ingState(g) {
@@ -2055,9 +2071,10 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     queueStock(mi, {}, mm);
     return q;
   }
+  // the fridge is running out while the store still has some
   function needsMove() {
     return S.menu.filter(function (i) {
-      return i.track && (Number(i.main) || 0) > 0 && stockState(i) !== "ok";
+      return i.track && (Number(i.main) || 0) > 0 && (Number(i.stock) || 0) <= lowAt(i);
     });
   }
   function queueOrder(order, day) { saveSoon(); queue({ t: "order", day: day, order: order }); }
@@ -2624,9 +2641,12 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
      tablet could count up to the manager's PIN and then void, discount and
      empty the drawer as him. Same counter, same waits. */
   var mgrBad = 0, mgrUntil = 0;
-  function askManager(reason, ok, onCancel) {
-    if (isMgr()) { ok(S.me); return; }
-    modal('<div class="padded stack"><h3>' + esc(t("Manager PIN")) + "</h3>" +
+  function askManager(reason, ok, onCancel) { askRole(3, reason, ok, onCancel); }
+  // a supervisor or a manager
+  function askSupervisor(reason, ok, onCancel) { askRole(2, reason, ok, onCancel); }
+  function askRole(level, reason, ok, onCancel) {
+    if (S.me && (ROLES[S.me.role] || 0) >= level) { ok(S.me); return; }
+    modal('<div class="padded stack"><h3>' + esc(level >= 3 ? t("Manager PIN") : t("Supervisor PIN")) + "</h3>" +
       '<p class="hint" style="margin:0">' + esc(reason) + "</p>" +
       '<input class="big-in" id="mgrPin" type="password" inputmode="numeric" maxlength="4" autocomplete="off"></div>' +
       '<div class="acts"><button class="btn" id="mgrNo" type="button">' + esc(t("Cancel")) + "</button>" +
@@ -2641,7 +2661,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         return;
       }
       var v = ($("mgrPin").value || "").replace(/\D/g, "");
-      var who = S.staff.filter(function (u) { return u.pin === hashPin(v) && u.role === "manager"; })[0];
+      var who = S.staff.filter(function (u) { return u.pin === hashPin(v) && (ROLES[u.role] || 0) >= level; })[0];
       if (!who) {
         mgrBad += 1;
         if (mgrBad >= 5) { mgrUntil = Date.now() + 60000; mgrBad = 0; }
@@ -2729,10 +2749,9 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     return list.map(function (i) {
       var st = stockState(i);
       var mn = Number(i.main) || 0;
-      var label = st === "out"
-        ? (mn > 0 ? t("Sold out") + " · " + t("Main store") + " " + mn : t("Sold out"))
-        : i.stock + " " + t("left");
-      var blocked = i.track && i.stock - inCart(i.id) <= 0;
+      var label = st === "out" ? t("Sold out")
+        : ((Number(i.stock) || 0) - inCart(i.id) <= 0 && mn > 0 ? t("Main store") + " " + mn : i.stock + " " + t("left"));
+      var blocked = i.track && avail(i) - inCart(i.id) <= 0;
       return '<button class="item" type="button" data-add="' + i.id + '"' + (blocked ? " disabled" : "") + ">" +
         '<span class="nm" dir="auto">' + esc(nm(i)) + "</span>" +
         (nm2(i) ? '<span class="ar" dir="auto">' + esc(nm2(i)) + "</span>" : "") +
@@ -2798,8 +2817,8 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
 
   function pushLine(it, qty, opts, note, px) {
     px = Number(px) > 0 ? r2(Number(px)) : 0;
-    if (it.track && inCart(it.id) + qty > it.stock) {
-      toast(t("Only") + " " + it.stock + " — " + nm(it), true); return;
+    if (it.track && inCart(it.id) + qty > avail(it)) {
+      toast(t("Only") + " " + avail(it) + " — " + nm(it), true); return;
     }
     var key = JSON.stringify(opts.map(function (o) { return o.name; })) + "|" + note + "|" + px;
     var same = S.cart.filter(function (l) {
@@ -2984,7 +3003,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     var l = S.cart.filter(function (x) { return x.uid === u; })[0];
     if (!l) return;
     var it = byId(l.id);
-    if (d > 0 && it.track && inCart(it.id) + 1 > it.stock) { toast(t("Only") + " " + it.stock + " — " + nm(it), true); return; }
+    if (d > 0 && it.track && inCart(it.id) + 1 > avail(it)) { toast(t("Only") + " " + avail(it) + " — " + nm(it), true); return; }
     var q = Math.floor(Number(l.qty) || 0) + d;
     if (q < 1) S.cart = S.cart.filter(function (x) { return x.uid !== u; });
     else l.qty = q;
@@ -3469,7 +3488,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     });
     Object.keys(wantI).forEach(function (id) {
       var it = byId(id);
-      if (it && wantI[id] > (Number(it.stock) || 0)) out.push(nm(it));
+      if (it && wantI[id] > avail(it)) out.push(nm(it));
     });
     Object.keys(wantG).forEach(function (id) {
       var g = ingById(id);
@@ -3898,7 +3917,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     if (extra) Object.keys(extra).forEach(function (k) { if (extra[k] !== "" && extra[k] != null) order[k] = extra[k]; });
     if (extra && extra.comp) order.disc = 0;
 
-    var di = {}, dn = {}, touched = [];
+    var di = {}, dn = {}, dm = {}, touched = [];
     lines.forEach(function (l) {
       var it = byId(l.id);
       if (!it) return;
@@ -3906,10 +3925,17 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         // record what was ACTUALLY taken off the shelf, not what was asked
         // for. clamping at zero and then booking the full quantity meant a
         // later void gave back stock that had never been there.
-        var took = Math.min(Number(it.stock) || 0, l.qty);
+        var took = Math.min(Math.max(0, Number(it.stock) || 0), l.qty);
         it.stock = r3((Number(it.stock) || 0) - took);
         di[it.id] = (di[it.id] || 0) - took;
         l.took = took;
+        // what the fridge could not cover comes out of the main store
+        var fromMain = Math.min(Math.max(0, Number(it.main) || 0), l.qty - took);
+        if (fromMain > 0) {
+          it.main = r3((Number(it.main) || 0) - fromMain);
+          dm[it.id] = (dm[it.id] || 0) - fromMain;
+          l.tookMain = fromMain;
+        }
         touched.push(it);
       }
       (it.recipe || []).forEach(function (r) {
@@ -3946,10 +3972,11 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
       S.sales[k].shift(); S.counter -= 1;
       // give the stock back too — nothing was sold
       Object.keys(di).forEach(function (id) { var it = byId(id); if (it) it.stock -= di[id]; });
+      Object.keys(dm).forEach(function (id) { var it = byId(id); if (it) it.main = r3((Number(it.main) || 0) - dm[id]); });
       Object.keys(dn).forEach(function (id) {
         var g = ingById(id); if (g) g.stock = Math.round((g.stock - dn[id]) * 1000) / 1000;
       });
-      di = {}; dn = {};
+      di = {}; dn = {}; dm = {};
       modal('<div class="stack"><p class="eyebrow" style="color:var(--bad)">' + esc(t("Not saved")) + "</p>" +
         "<p>" + esc(t("The tablet's storage is full, so this sale could not be saved. The check is still on screen. Take a backup from Setup, then charge it again.")) + "</p>" +
         '</div><div class="acts"><button class="btn primary" id="lsfOk" type="button">' + esc(t("Done")) + "</button></div>");
@@ -3961,7 +3988,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     var hadTable = S.splitting ? "" : S.table;
     releaseTable();
 
-    queueStock(di, dn);
+    queueStock(di, dn, dm);
     queueOrder(order, k); saveConfig();
 
     freshTicket();
@@ -3971,6 +3998,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
 
     var ran = touched.filter(function (i) { return stockState(i) !== "ok"; });
     showReceipt(order, ran, hadTable);
+    setTimeout(warnDrawer, 400);
   }
 
   /* ============ receipt ============ */
@@ -4075,7 +4103,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
   }
   function showReceipt(o, ran, backToTables, dup) {
     var warn = (ran && ran.length) ? '<hr><div style="color:var(--warn);font-size:12px">' + esc(t("Storage alert:")) +
-      " " + ran.map(function (i) { return esc(nm(i)) + " (" + i.stock + ")"; }).join(", ") + "</div>" : "";
+      " " + ran.map(function (i) { return esc(nm(i)) + " (" + avail(i) + ")"; }).join(", ") + "</div>" : "";
     modal('<div class="rcpt">' + receiptHTML(o, dup) + warn + "</div>" +
       '<div class="acts">' + printPair("prBtn") +
       '<button class="btn" id="dlBtn" type="button" hidden>' + esc(t("Save file")) + "</button>" +
@@ -4774,8 +4802,9 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     return Object.keys(map || {}).filter(function (c) { return map[c]; })
       .map(function (c) { return [t("Foreign notes") + " " + c, fxMoney(c, map[c])]; });
   }
-  function tile(k, v, cls) {
-    return '<div class="tile ' + (cls || "") + '"><div class="k">' + esc(k) + '</div><div class="v num">' + v + "</div></div>";
+  function tile(k, v, cls, sub) {
+    return '<div class="tile ' + (cls || "") + '"><div class="k">' + esc(k) + '</div><div class="v num">' + v + "</div>" +
+      (sub ? '<div class="s">' + esc(sub) + "</div>" : "") + "</div>";
   }
 
   function renderShift() {
@@ -4823,7 +4852,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         tile(t("Sales") + " " + cur(), money(s.gross), "gold") +
         tile(t("Expenses"), money(xa), xa ? "bad" : "") +
         tile(t("Net income"), money(s.gross - xa), "ok") +
-        tile(t("Expected in drawer"), money(S.shift.float + s.egpIn - xc - shiftPayOut(S.shift.no)), "") +
+        tile(t("Expected in drawer"), money(drawerExpected()), drawerExpected() < 0 ? "bad" : "") +
         (openChecks().length ? tile(t("Open checks"), openChecks().length, "warn") : "") + "</div>" +
         '<div class="panel padded stack"><dl class="kv">' +
           "<dt>" + esc(t("Opened by")) + "</dt><dd>" + esc(S.shift.by) + "</dd>" +
@@ -4837,6 +4866,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
           "<dt>" + esc(t("Cash out")) + "</dt><dd>" + money(xc) + "</dd>" +
           (shiftPayOut(S.shift.no) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>" + minusSign() +
             money(shiftPayOut(S.shift.no)) + "</dd>" : "") +
+          (shiftCashIn(S.shift.no) ? "<dt>" + esc(t("Cash added to drawer")) + "</dt><dd>+" + money(shiftCashIn(S.shift.no)) + "</dd>" : "") +
           fxRows(s.fx).map(function (r) { return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("") +
           "<dt>" + esc(t("Voided")) + "</dt><dd>" + s.voids + "</dd>" +
           (s.refunds ? "<dt>" + esc(t("Refunded")) + "</dt><dd>" + money(s.refunds) + "</dd>" : "") +
@@ -4875,6 +4905,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
           "<dt>" + esc(t("Expenses")) + "</dt><dd>" + minusSign() + money(r.expenses || 0) + "</dd>" +
           ((r.cashOut || 0) ? "<dt>" + esc(t("Cash out")) + "</dt><dd>" + minusSign() + money(r.cashOut) + "</dd>" : "") +
           ((r.payOut || 0) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>" + minusSign() + money(r.payOut) + "</dd>" : "") +
+          ((r.cashIn || 0) ? "<dt>" + esc(t("Cash added to drawer")) + "</dt><dd>+" + money(r.cashIn) + "</dd>" : "") +
           ((r.stips || 0) ? "<dt>" + esc(t("Staff tips")) + "</dt><dd>" + money(r.stips) +
             (tipSplit(r).n ? " · " + money(tipSplit(r).each) + " " + t("each") : "") + "</dd>" : "") +
           "<dt>" + esc(t("Net income")) + "</dt><dd>" + money(r.net == null ? r.gross : r.net) + "</dd>" +
@@ -4887,8 +4918,21 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
 
   var EXP_CATS = ["Supplies", "Maintenance", "Staff advance", "Transport", "Bills", "Other"];
   function expDay(e) { return dayKey(new Date(e.ts)); }
-  function dayExpenses(k) { return S.expenses.filter(function (e) { return !e.del && expDay(e) === k; }); }
-  function shiftExpenses(no) { return S.expenses.filter(function (e) { return !e.del && e.shift === no; }); }
+  // cash put INTO the drawer is kept in the same synced list, marked kind "in",
+  // and never counts as an expense
+  function isExp(e) { return !e.del && e.kind !== "in"; }
+  function dayExpenses(k) { return S.expenses.filter(function (e) { return isExp(e) && expDay(e) === k; }); }
+  function shiftExpenses(no) { return S.expenses.filter(function (e) { return isExp(e) && e.shift === no; }); }
+  function shiftCashIns(no) { return S.expenses.filter(function (e) { return !e.del && e.kind === "in" && e.shift === no; }); }
+  function shiftCashIn(no) { return r2(shiftCashIns(no).reduce(function (a, e) { return a + (Number(e.amount) || 0); }, 0)); }
+  function drawerExpected() {
+    if (!S.shift) return 0;
+    var s = sums(shiftOrders(S.shift.no));
+    return r2(S.shift.float + s.egpIn - sumExp(shiftExpenses(S.shift.no), true) - shiftPayOut(S.shift.no) + shiftCashIn(S.shift.no));
+  }
+  function warnDrawer() {
+    if (S.shift && drawerExpected() < -0.004) toast(t("The drawer is short of pounds: add cash to the drawer first."), true);
+  }
   /* Cash that leaves the drawer for an order rung up in a previous shift.
      Within one shift the order's own egpIn already carries it; across a
      handover it has to be charged to the shift that actually pays it out. */
@@ -4916,7 +4960,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
   // money moved while no shift was open: it belongs to the day, not to any
   // shift, and without this it appeared on no screen at all
   function looseExpenses(k) {
-    return S.expenses.filter(function (e) { return !e.del && !e.shift && expDay(e) === k; });
+    return S.expenses.filter(function (e) { return isExp(e) && !e.shift && expDay(e) === k; });
   }
   function loosePayOut(k) {
     return (S.adjust || []).reduce(function (a, x) {
@@ -4939,7 +4983,8 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     // screen the moment a shift opened. It is shown here too, in its own
     // group, so it can be seen and removed — but not counted in this shift.
     var loose = S.shift ? looseExpenses(dayKey()) : [];
-    var list = (S.shift ? shiftExpenses(S.shift.no) : dayExpenses(dayKey())).concat(loose);
+    var list = (S.shift ? shiftExpenses(S.shift.no) : dayExpenses(dayKey())).concat(loose)
+      .concat(S.shift ? shiftCashIns(S.shift.no) : []);
     var total = sumExp(S.shift ? shiftExpenses(S.shift.no) : dayExpenses(dayKey()));
     $("expPanel").innerHTML = list.length
       ? '<div class="tablewrap"><table><thead><tr>' +
@@ -4947,11 +4992,13 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
           "<th>" + esc(t("Paid from")) + "</th>" + (seeMoney ? '<th class="r">' + esc(t("Amount")) + "</th>" : "") + "<th></th>" +
         "</tr></thead><tbody>" +
         list.map(function (e) {
-          return '<tr><td>' + esc(t(e.cat || "Other")) + "</td>" +
+          var cin = e.kind === "in";
+          return '<tr><td>' + esc(cin ? t("Cash added to drawer") : t(e.cat || "Other")) + "</td>" +
             "<td>" + esc(e.note || "") + '<span class="ar">' + esc(hhmm(e.ts)) + " · " + esc(e.by || "") +
               (e.shift ? "" : " · " + esc(t("outside a shift"))) + "</span></td>" +
             "<td>" + esc(t(e.pay || "Cash")) + "</td>" +
-            (seeMoney ? '<td class="r num" style="color:var(--bad)">' + minusSign() + money(e.amount) + "</td>" : "") +
+            (seeMoney ? '<td class="r num" style="color:' + (cin ? "var(--ok)" : "var(--bad)") + '">' +
+              (cin ? "+" : minusSign()) + money(e.amount) + "</td>" : "") +
             '<td><button class="del" type="button" data-xdel="' + e.id + '">✕</button></td></tr>';
         }).join("") +
         (seeMoney ? '<tr><td colspan="3"><strong>' + esc(t("Total")) + '</strong></td><td class="r num" style="color:var(--bad)">' + minusSign() +
@@ -4993,6 +5040,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         closeModal(); renderShift();
         if (S.tab === "sales") renderSales();
         toast(t("Saved"));
+        setTimeout(warnDrawer, 1200);
       };
       // only cash out used to be signed for, so a waiter could post a five
       // thousand pound "bank" expense and knock it straight off the night's
@@ -5003,6 +5051,34 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     setTimeout(function () { var el = $("xAmt"); if (el) { el.focus(); el.select(); } }, 50);
   }
   $("addExpBtn").addEventListener("click", function () { if (needs("shift")) expenseSheet(); });
+  $("addCashBtn").addEventListener("click", function () {
+    if (!needs("shift")) return;
+    if (!S.shift) { toast(t("Open a shift before taking orders."), true); return; }
+    modal('<div class="padded stack"><h3>' + esc(t("Add cash to drawer")) + "</h3>" +
+      '<p class="hint" style="margin:0">' + esc(t("Money put into the drawer from outside — change, or cash for expenses. It is added to what the drawer should hold.")) + "</p>" +
+      '<div class="fld"><label for="ciAmt">' + esc(t("Amount")) + " " + esc(cur()) + "</label>" +
+      '<input class="big-in" id="ciAmt" type="text" inputmode="decimal" value="0"></div>' +
+      '<div class="fld"><label for="ciNote">' + esc(t("Where is it from?")) + '</label><input id="ciNote"></div></div>' +
+      '<div class="acts"><button class="btn" id="ciNo" type="button">' + esc(t("Cancel")) + "</button>" +
+      '<button class="btn primary" id="ciYes" type="button">' + esc(t("Save")) + "</button></div>");
+    $("ciNo").addEventListener("click", closeModal);
+    $("ciYes").addEventListener("click", function () {
+      var amt = r2(Math.max(0, num($("ciAmt").value)));
+      if (!amt) { toast(t("Type how much, as a number above zero."), true); return; }
+      if (amt > 1000000) { toast(t("That amount looks wrong."), true); return; }
+      var note = $("ciNote").value.trim().slice(0, 200);
+      askSupervisor(t("Add cash to drawer") + " · " + money(amt), function (who) {
+        var rec = { id: "c" + DEVICE + "-" + uid(), ts: new Date().toISOString(), kind: "in",
+          shift: S.shift ? S.shift.no : 0, amount: amt, pay: "Cash", note: note,
+          by: S.me ? S.me.name : "", okBy: who ? who.name : (S.me ? S.me.name : ""), del: false, upd: Date.now() };
+        S.expenses.unshift(rec);
+        queueExpense(rec);
+        closeModal(); renderShift();
+        toast(t("Saved"));
+      });
+    });
+    setTimeout(function () { var el = $("ciAmt"); if (el) { el.focus(); el.select(); } }, 50);
+  });
   $("expPanel").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-xdel]");
     if (!b) return;
@@ -5058,7 +5134,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     var ocTotal = oc.reduce(function (a, p) { return a + (Number(p.total) || 0); }, 0);
     var xc = sumExp(shiftExpenses(S.shift.no), true);
     var xa = sumExp(shiftExpenses(S.shift.no));
-    var expected = S.shift.float + s.egpIn - xc - shiftPayOut(S.shift.no);
+    var expected = drawerExpected();
     // a blind count: whoever is not a manager counts the drawer without being
     // told what it should hold, and never sees whether it came out short
     var blind = !isMgr();
@@ -5084,6 +5160,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         "<dt>" + esc(t("Cash out")) + "</dt><dd>" + minusSign() + money(xc) + "</dd>" +
         (shiftPayOut(S.shift.no) ? "<dt>" + esc(t("Paid back out")) + "</dt><dd>" + minusSign() +
           money(shiftPayOut(S.shift.no)) + "</dd>" : "") +
+        (shiftCashIn(S.shift.no) ? "<dt>" + esc(t("Cash added to drawer")) + "</dt><dd>+" + money(shiftCashIn(S.shift.no)) + "</dd>" : "") +
         fxRows(s.fx).map(function (r) { return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("") +
         "<dt>" + esc(t("Net income")) + "</dt><dd>" + money(s.gross - xa) + "</dd>" +
         "<dt>" + esc(t("Expected in drawer")) + '</dt><dd class="big">' + money(expected) + "</dd></dl>") +
@@ -5158,6 +5235,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
       '<div class="l"><span>' + esc(t("Opening float")) + "</span><span>" + money(rec.float) + "</span></div>" +
       '<div class="l"><span>' + esc(t("Cash out")) + "</span><span>" + minusSign() + money(rec.cashOut) + "</span></div>" +
       (rec.payOut ? '<div class="l"><span>' + esc(t("Paid back out")) + "</span><span>" + minusSign() + money(rec.payOut) + "</span></div>" : "") +
+      (rec.cashIn ? '<div class="l"><span>' + esc(t("Cash added to drawer")) + "</span><span>+" + money(rec.cashIn) + "</span></div>" : "") +
       fxRows(rec.fx).map(function (r) {
         return '<div class="l"><span>' + esc(r[0]) + "</span><span>" + esc(r[1]) + "</span></div>"; }).join("") +
       '<div class="l"><span>' + esc(t("Expected in drawer")) + "</span><span>" + money(rec.expected) + "</span></div>" +
@@ -5182,6 +5260,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     var rec = { no: S.shift.no, by: S.shift.by, openedAt: S.shift.openedAt, float: S.shift.float,
       okBy: okBy ? okBy.name : (S.me ? S.me.name : ""),
       cashOut: xc || 0, expenses: xa || 0, tips: s.tips || 0, payOut: r2(shiftPayOut(S.shift.no)),
+      cashIn: shiftCashIn(S.shift.no),
       stips: r2(s.stips || 0), stipCash: r2(s.stipCash || 0), crew: (S.shift.crew || []).slice(),
       // rounded on the way in: these are what the Excel and the cloud copy
       // carry, and 490.20000000000005 in a book is a question waiting to be asked
@@ -5253,7 +5332,9 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
       tile(t("Ingredients") + " " + cur(), money(value), "gold") +
       tile(t("Running low"), lowI + lowN, (lowI + lowN) ? "warn" : "") +
       tile(t("Sold out"), outI + outN, (outI + outN) ? "bad" : "") +
-      (lastCount() ? tile(t("Last stocktake"), lastCountLabel(), (lastCount().value < 0 ? "bad" : "")) : "");
+      tile(t("Move to the fridge"), needsMove().length, needsMove().length ? "warn" : "") +
+      (lastCount() ? tile(t("Last stocktake · difference"), sgn(lastCount().value, true),
+        (lastCount().value < 0 ? "bad" : "ok") + " wide", whenStr(lastCount().at)) : "");
 
     var rows;
     if (S.stockScope === "ing") {
@@ -5751,7 +5832,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     var oldEgpIn = ord.egpIn == null ? oldCash : Number(ord.egpIn) || 0;
     var oldStipCash = Number(ord.stipCash) || 0;
 
-    var it = byId(l.id), di = {}, dn = {};
+    var it = byId(l.id), di = {}, dn = {}, dm = {};
     if (it) {
       // give back the share of what this line ACTUALLY took off the shelf,
       // not the share of what it was billed for
@@ -5765,6 +5846,12 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         it.stock = r3((Number(it.stock) || 0) + back0);
         di[it.id] = (di[it.id] || 0) + back0;
         if (l.took != null) l.took = r3(l.took - back0);
+        if (l.tookMain) {
+          var backM = r3(l.tookMain * share);
+          it.main = r3((Number(it.main) || 0) + backM);
+          dm[it.id] = (dm[it.id] || 0) + backM;
+          l.tookMain = r3(l.tookMain - backM);
+        }
       }
       (it.recipe || []).forEach(function (r) {
         var g = ingById(r.ing);
@@ -5818,7 +5905,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
     ord.editedBy = who.name; ord.editedAt = new Date().toISOString();
     ord.upd = Date.now();
 
-    queueStock(di, dn);
+    queueStock(di, dn, dm);
     queueOrder(ord, S.salesDay);
     renderSales(); renderItems(); updateBadges(); renderShiftChip(); if (S.tab === "shift") renderShift();
     toast(t("Item removed") + " · " + t("Refund") + " " + money(back));
@@ -5881,7 +5968,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
         ord.tip = 0; ord.cash = 0; ord.card = 0;
         ord.egpIn = keep;              // the tip is all this check leaves behind
         if (!S.shift || ord.shift !== S.shift.no) payOut(cashBack, "void", ord.ref);
-        var di = {}, dn = {};
+        var di = {}, dn = {}, dm = {};
         ord.lines.forEach(function (l) {
           var it = byId(l.id);
           if (!it) return;
@@ -5893,6 +5980,10 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
             it.stock = r3((Number(it.stock) || 0) + l.took);
             di[it.id] = (di[it.id] || 0) + l.took;
           }
+          if (it.track && l.tookMain) {
+            it.main = r3((Number(it.main) || 0) + l.tookMain);
+            dm[it.id] = (dm[it.id] || 0) + l.tookMain;
+          }
           (it.recipe || []).forEach(function (r) {
             var g = ingById(r.ing);
             if (!g) return;
@@ -5903,7 +5994,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
           });
         });
         ord.upd = Date.now();
-        queueStock(di, dn);
+        queueStock(di, dn, dm);
         queueOrder(ord, S.salesDay);
         renderSales(); renderItems(); updateBadges(); renderShiftChip(); if (S.tab === "shift") renderShift();
         toast(t("Order voided"));
@@ -7452,7 +7543,7 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
 
     /* ---- Expenses across the month ---- */
     var xall = (S.expenses || []).filter(function (e) {
-      return !e.del && expDay(e).indexOf(mk + "-") === 0;
+      return isExp(e) && expDay(e).indexOf(mk + "-") === 0;
     }).slice().reverse();
     var erows = [[H(t("Day")), H(t("Time")), H(t("Category")), H(t("Reason")),
       H(t("Paid from")), H(t("By")), H(t("Amount") + " " + cu)]];
