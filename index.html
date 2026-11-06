@@ -885,7 +885,8 @@ input,textarea,select,[contenteditable="true"]{-webkit-user-select:text;user-sel
   function isBar(i) { return BAR_CATS.indexOf(i && i.cat) >= 0; }
 
   /* ============ language ============ */
-  var LANG = "en";
+  // a new device starts in Arabic; a device that chose a language keeps it
+  var LANG = "ar";
   var AR = {
     "Last stocktake · difference":"آخر جرد · الفرق",
     "Move to the fridge":"محتاج يتنقل للثلاجة",
