@@ -134,6 +134,9 @@ main{padding-block:18px 40px}
 .fld input,.fld select,.fld textarea{background:var(--sunk);border:1px solid var(--line);
   border-radius:8px;padding:7px 9px;font-size:14px;width:100%}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+/* a label that wraps onto two lines used to push its box below the others in
+   the row; the boxes now sit on one line at the bottom of each row */
+.grid2>.fld{justify-content:flex-end}
 
 /* ---------- order ---------- */
 .order-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start}
